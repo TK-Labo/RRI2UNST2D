@@ -12,23 +12,23 @@ https://doi.org/10.2208/prohe.44.461 \
 Koki YAMAMURA, Shunji NISHINO, Masafumi YAMADA, Takahiro SAYAMA, Kenji KAWAIKE, Kentaro TAKI (2025) Proposal of coupled analysis of Rainfall-Runoff-Inundation (RRI) model and unstructured flood management planning, Advances in river engineering, JSCE, 31, 469-474.\
 
 ## Introduction
-
+このプロジェクトは降雨流出氾濫（RRI: Rainfall-Runoff-Inundation）モデルと非構造格子二次元不定流モデル（UNST2D: Unstructured grid 2D unsteady flow model）を連携させることによって、降雨による流出・氾濫現象をより精度高くシミュレーションするためのモデルです。
 
 ## Coupled calculation with the RRI model
  \
 RRIモデルとの連成計算を行う場合、国立研究開発法人土木研究所よりRRIモデル（ver.1.4.2.7）を入手し、RRI.f90に以下を追加します。\
-https://www.pwri.go.jp/icharm/research/rri/index_j.html \
-\
-## 変数追加（68行目に挿入）
+https://www.pwri.go.jp/icharm/research/rri/index_j.html  
+ \
+### 変数追加（68行目に挿入）
   
 ```fortran
 integer uflg
 uflg = 0
 ```
 
-## 主要なコード追加
+### 主要なコード追加
 
-### 1. UNST-2D解析関連の追加（574行目に挿入）
+#### 1. UNST-2D解析関連の追加（574行目に挿入）
 
 ```fortran
 call unst_rdat(ny_rain, qp, nx_rain, tt_max_rain)
