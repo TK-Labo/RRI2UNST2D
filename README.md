@@ -1,10 +1,11 @@
 # RRI2UNST2D
 
 ## Introduction
-このプロジェクトは降雨流出氾濫（RRI: Rainfall-Runoff-Inundation）モデルと非構造格子二次元不定流モデル（UNST2D: Unstructured grid 2D unsteady flow model）を連携させ、降雨による流出・氾濫現象をより精度高くシミュレーションするためのモデルを開発しています。
+このプロジェクトでは、降雨流出氾濫（RRI: Rainfall-Runoff-Inundation）モデルと非構造格子二次元不定流モデル（UNST2D: Unstructured grid 2D unsteady flow model）を連携させ、降雨による流出・氾濫現象をより精度高くシミュレーションするためのモデルを開発しています。  
+In this project, we are developing a model to more accurately simulate runoff and flooding phenomena caused by rainfall by linking the Rainfall-Runoff-Inundation (RRI) model with the Unstructured grid 2D unsteady flow model (UNST2D).  
 
 ## Citation
-このコードを利用した計算結果の公表・頒布に際しては、以下の論文を引用してください。 
+このコードを利用した計算結果の公表・頒布に際しては、以下の論文を引用してください。  
 Please cite the following paper when publishing or distributing calculation results using this code.  
   
 川池 健司, 井上 和也, 戸田 圭一（2000）非構造格子の都市氾濫解析への適用，水工学論文集，44：461-466.  
