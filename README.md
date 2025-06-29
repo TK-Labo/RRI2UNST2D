@@ -18,17 +18,18 @@ Koki YAMAMURA, Shunji NISHINO, Masafumi YAMADA, Takahiro SAYAMA, Kenji KAWAIKE, 
  \
 RRIモデルとの連成計算を行う場合、国立研究開発法人土木研究所よりRRIモデル（ver.1.4.2.7）を入手し、RRI.f90に以下を追加します。\
 https://www.pwri.go.jp/icharm/research/rri/index_j.html  
- \
-### 変数追加（68行目に挿入）
+
+
+### Additional Code for RRI.f90  
+
+#### 0. Add Variables (Line.68）
   
 ```fortran
 integer uflg
 uflg = 0
 ```
 
-### 主要なコード追加
-
-#### 1. UNST-2D解析関連の追加（574行目に挿入）
+#### 1. Call UNST2D (Line.574）
 
 ```fortran
 call unst_rdat(ny_rain, qp, nx_rain, tt_max_rain)
@@ -54,19 +55,19 @@ call diskwrite
 call dispwrite
 ```
 
-### 2. 降雨データ処理（525行目に挿入）
+#### 2. Rain Setting（Line.525）
 
 ```fortran
 dtrain = t_rain(1) - t_rain(0)
 ```
 
-### 3. 出力タイムステップ設定（592~593行目の間に挿入）
+#### 3. Timestep Setting（Line.593）
 
 ```fortran
 timmax = dble(dt) * dble(calldt)
 ```
 
-### 4. UNST-2Dの処理ロジックの追加（1192行目に挿入）
+#### 4. UNST2D > RRI（Line.1192）
 
 ```fortran
 call unst_qin(qr_ave, qs_ave, uflg, hr, hs)
@@ -75,7 +76,7 @@ if(mod(time, timmax) == 0 .and. uflg==0) call prediskwrite
 if(mod(time, timmax) == 0 .and. uflg==1) call UNST(hs, hr)
 ```
 
-### 5. ファイルクローズ処理とメモリ解放処理（1203行目に挿入）
+#### 5. File closing and memory release processing（Line.1203）
 
 ```fortran
 call wrhmax
