@@ -1,5 +1,8 @@
 # RRI2UNST2D
 
+## Introduction
+このプロジェクトは降雨流出氾濫（RRI: Rainfall-Runoff-Inundation）モデルと非構造格子二次元不定流モデル（UNST2D: Unstructured grid 2D unsteady flow model）を連携させ、降雨による流出・氾濫現象をより精度高くシミュレーションするためのモデルです。
+
 ## Citation
 このコードを利用した計算結果の公表・頒布に際しては、以下の論文を引用してください。\
 Please cite the following paper when publishing or distributing calculation results using this code.\
@@ -11,8 +14,37 @@ https://doi.org/10.2208/prohe.44.461 \
 山村 孝輝，西野 駿治，山田 真史，佐山 敬洋，川池健司，瀧健太郎（2025），流域治水計画検討のための降雨流出氾濫(RRI)モデルと非構造格子二次元不定流(UNST-2D)モデルの連成解析法の検討 河川技術論文集，31：469–474.\
 Koki YAMAMURA, Shunji NISHINO, Masafumi YAMADA, Takahiro SAYAMA, Kenji KAWAIKE, Kentaro TAKI (2025) Proposal of coupled analysis of Rainfall-Runoff-Inundation (RRI) model and unstructured flood management planning, Advances in river engineering, JSCE, 31, 469-474.\
 
-## Introduction
-このプロジェクトは降雨流出氾濫（RRI: Rainfall-Runoff-Inundation）モデルと非構造格子二次元不定流モデル（UNST2D: Unstructured grid 2D unsteady flow model）を連携させ、降雨による流出・氾濫現象をより精度高くシミュレーションするためのモデルです。
+## Contents
+
+プロジェクトは次の主要なディレクトリとファイルで構成されています：
+
+- `src/`: Fortranソースコードが格納されたディレクトリ
+  - UNSTモデル関連のファイル（`UNST*.f90`）
+  - モジュールファイル（`*_mod.f90`）
+  - Makefile
+
+## コンパイル方法
+### 1. UNST2D - Stand Alone model
+
+```bash
+cd src
+make
+```
+### 2. UNST2D - Coupled model with RRI
+
+RRI関連コードを同じフォルダにコピーして以下を実行
+  
+```bash
+cd src
+make
+```
+
+## 実行方法
+必要な入力ファイルを準備した後、以下のコマンドで実行します：
+```bash
+cd src
+./RRI.exe
+```
 
 ## Coupled calculation with the RRI model
  \
