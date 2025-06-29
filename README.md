@@ -163,7 +163,7 @@ if(ga==1) deallocate(genes)
 K.Kawaike & TK Labo  
   
 TK Labo Members  
-  *K.Yamamura 2021-2025  
-  *D.Baba 2022-  
-  *S.Nishino 2023-  
-  *K.Taki 2017-  
+  * K.Yamamura 2021-2025  
+  * D.Baba 2022-  
+  * S.Nishino 2023-  
+  * K.Taki 2017-  
