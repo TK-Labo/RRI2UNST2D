@@ -23,7 +23,7 @@ Koki YAMAMURA, Shunji NISHINO, Masafumi YAMADA, Takahiro SAYAMA, Kenji KAWAIKE, 
   - モジュールファイル（`*_mod.f90`）
   - Makefile
 
-## コンパイル方法
+## Compile
 ### 1. UNST2D - Stand Alone model
 
 ```bash
@@ -39,13 +39,19 @@ cd src
 make
 ```
 
-## 実行方法
+## Run
+### 1. UNST2D - Stand Alone model
+必要な入力ファイルを準備した後、以下のコマンドで実行します：
+```bash
+cd src
+./UNST.exe
+```
+### 2. UNST2D - Coupled model with RRI
 必要な入力ファイルを準備した後、以下のコマンドで実行します：
 ```bash
 cd src
 ./RRI.exe
 ```
-
 ## Coupled calculation with the RRI model
  \
 RRIモデルとの連成計算を行う場合、国立研究開発法人土木研究所よりRRIモデル（ver.1.4.2.7）を入手し、RRI.f90に以下を追加します。\
