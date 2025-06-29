@@ -159,11 +159,11 @@ if(dsmesh==1) deallocate(dsme)
 if(ga==1) deallocate(genes)
 ```
 
-# Coded by  
-K.Kawaike & TK Labo  
+## Coded by 
+Kenji Kawaike & TK Labo  
   
-TK Labo Members  
-*K.Yamamura 2021-2025  
-*D.Baba 2022-  
-*S.Nishino 2023-  
-*K.Taki 2017-  
+TK Labo Members :  
+*Koki Yamamura 2021-2025  
+*Daiki Baba 2022-  
+*Shunji Nishino 2023-  
+*Kentaro Taki 2017-  
