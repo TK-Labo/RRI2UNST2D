@@ -15,11 +15,12 @@ Koki YAMAMURA, Shunji NISHINO, Masafumi YAMADA, Takahiro SAYAMA, Kenji KAWAIKE, 
 
 
 ## Coupled calculation with the RRI model
-
-RRIモデルとの連成計算を行う場合、国土交通省土木研究所（https://www.pwri.go.jp/icharm/research/rri/index_j.html）よりRRIモデル（ver.1.4.2.7）を入手し、RRI.f90に以下を追加します。 
-
+ \
+RRIモデルとの連成計算を行う場合、国立研究開発法人土木研究所よりRRIモデル（ver.1.4.2.7）を入手し、RRI.f90に以下を追加します。\
+https://www.pwri.go.jp/icharm/research/rri/index_j.html \
+\
 ## 変数追加（68行目に挿入）
-
+  
 ```fortran
 integer uflg
 uflg = 0
