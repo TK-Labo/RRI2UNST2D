@@ -1,0 +1,137 @@
+--- RRI.f90	2025-07-03 10:48:28.267041513 +0900
++++ RRI_UNST.f90	2025-07-03 10:47:06.086609895 +0900
+@@ -6,6 +6,7 @@
+ !
+ program RRI
+ use globals
++use unst_globals_mod
+ use runge_mod
+ use dam_mod, only: dam_switch, dam_vol_temp
+ use tecout_mod
+@@ -66,6 +67,9 @@
+ character*256 ofile_ro, outdir1, outdir2
+ integer kk, l
+ 
++integer uflg
++uflg = 0
++
+ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ !!! STEP 0: FILE NAME AND PARAMETER SETTING
+ !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+@@ -506,6 +510,7 @@
+   read(11, *, iostat = ios) (rdummy, j = 1, nx_rain)
+  enddo
+  if( ios.lt.0 ) exit
++ if( ios.ne.0 ) exit
+  tt = tt + 1
+ enddo
+ tt_max_rain = tt - 1
+@@ -526,6 +531,8 @@
+ ! unit convert from (mm/h) to (m/s)
+ qp = qp / 3600.d0 / 1000.d0
+ 
++dtrain = t_rain(1) - t_rain(0)
++
+ do j = 1, nx
+  rain_j(j) = int( (xllcorner + (dble(j) - 0.5d0) * cellsize - xllcorner_rain) / cellsize_rain_x ) + 1
+ enddo
+@@ -575,6 +582,31 @@
+  close(11)
+ endif
+ 
++call unst_rdat(ny_rain, qp, nx_rain, tt_max_rain, &
++    ny, nx, lasth, dt, &
++    xllcorner_rain, yllcorner_rain, cellsize_rain_x, cellsize_rain_y, &
++    xllcorner, yllcorner, cellsize)
++if(plantFN==1) call plantFNdat
++if(plantDa==1) call plantDadat
++if(paddydam==1) call paddydat
++if(drainarea==1) call draindat
++if(morid==1) call moriddat
++
++call unst_initiald
++if(paddydam==1) call paddyinitiald
++if(drainarea==1) call draininitiald
++
++if(str_type == 0) then
++  phi(61) = 0.20d0
++  phi(63) = 0.20d0
++elseif(str_type == 1) then
++  phi(61) = 0.05d0
++  phi(63) = 0.20d0
++endif
++
++call diskwrite
++call dispwrite
++
+ ! For TSAS Output (Initial Condition)
+ call sub_slo_ij2idx( hs, hs_idx )
+ call sub_riv_ij2idx( hr, hr_idx )
+@@ -593,6 +625,7 @@
+ out_dt = dble(maxt) / dble(outnum)
+ out_dt = max(1.d0, out_dt)
+ out_next = nint(out_dt)
++timmax = dble(dt) * dble(calldt)
+ tt = 0
+ 
+ do t = 1, maxt
+@@ -1193,6 +1226,11 @@
+   endif
+  endif
+ 
++ call unst_qin(ny, nx, i4, qr_ave, qs_ave, hr, hs, area, time, uflg)
++ if(mod(time, timmax) == 0 .and. uflg==0) call predispwrite(time)
++ if(mod(time, timmax) == 0 .and. uflg==0) call prediskwrite(time)
++ if(mod(time, timmax) == 0 .and. uflg==1) call UNST(ny, nx, domain, riv, area, time, hs, hr)
++
+  ! check water balance
+  if(mod(t, 1).eq.0) then
+   call storage_calc(hs, hr, hg, ss, sr, si, sg)
+@@ -1204,6 +1242,47 @@
+ 
+ enddo
+ 
++call wrhmax
++
++write(*, 1999) time
++1999 format('      - normal end -  time=', f8.0)
++
++if(str_type==1) then
++  close(10077)
++  close(10078)
++endif
++close(10091)
++close(10093)
++close(10094)
++close(10095)
++close(10096)
++close(10097)
++close(100101)
++close(100102)
++close(100103)
++
++if(paddydam==1) then
++  close(10098)
++  close(10099)
++  close(100100)
++endif
++
++deallocate(baseo, dnox, dnoy, smesh, scv, rthl, ux, uy, xmesh, ymesh, rtuv_x, rtuv_y)
++deallocate(limesh, linode, inf, ko, menode, melink, inl, qin, lkyokai_dx, lkyokai_dy)
++deallocate(unsth, ho, hl, hmax, uummax, vvmmax)
++deallocate(um, umo, umm, uu, vn, vno, vnm, vv)
++deallocate(mn, rnof, lambda, rbeta, umbeta, vnbeta)
++deallocate(uum, vvm, lhan, lhano, qr_sum, rnx, dl)
++deallocate(unstc, co, str, stro, strmx)
++if(plantFN==1) deallocate(plantF_array, plantN_array)
++if(plantDa==1) deallocate(plant_D_array, plant_a_array, dk_val)
++if(paddydam==1) deallocate(paddyid, pqout_idx, pdrain, min_pmeshid, device)
++if(paddydam==1) deallocate(orifice_num, min_dist, psmesh, dr_dist, dhp, phid)
++if(paddydam==1) deallocate(paddy_q, pqh, drain2phidx)
++if(drainarea==1) deallocate(inf_dr, drp, drr, drr_dist, dhj)
++if(dsmesh==1) deallocate(dsdt, dsinf, dsupper, dsfilter2)
++if(ga==1) deallocate(genes)
++
+ !pause
+ 
+ end program RRI
