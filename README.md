@@ -72,7 +72,7 @@ https://www.pwri.go.jp/icharm/research/rri/index_j.html
 +uflg = 0
 ```
 
-#### 3. End of foile condition after line.508 of RRI.f90 (ver.1.4.2.7).
+#### 3. End of file condition after line.508 of RRI.f90 (ver.1.4.2.7).
 This modification is for compiliation with gfortran.
 
 ```diff
