@@ -6,6 +6,8 @@ https://github.com/user-attachments/assets/d922fac3-b09c-4861-9c57-251e41bb8a58
 このプロジェクトでは、降雨流出氾濫 (RRI: Rainfall-Runoff-Inundation) モデルと非構造格子二次元不定流モデル (UNST2D: Unstructured grid 2D unsteady flow model) を連携させ、降雨による流出・氾濫現象をより精度高くシミュレーションするためのモデルを開発しています。  
 In this project, we are developing a model to more accurately simulate runoff and flooding phenomena caused by rainfall by linking the Rainfall-Runoff-Inundation (RRI) model with the Unstructured grid 2D unsteady flow model (UNST2D).
 
+降雨流出氾濫（RRI）モデルと非構造格子二次元不定流（UNST2D）モデルを結合し，連成計算が可能な解析法を提案しています．RRIモデルをベースに任意領域でUNST-2Dの分担範囲を選択し，RRIモデルで計算された流量フラックスをUNST-2Dモデルの外縁に境界条件として与え，UNST-2Dモデルで計算された水深を重複領域上にあるRRIモデルの各メッシュに水位として逐次返すことで，両モデルの計算結果を整合させながら連成計算を進めます．
+
 ## Citation
 このコードを利用した計算結果の公表・頒布に際しては、以下の論文を引用してください。  
 Please cite the following paper when publishing or distributing calculation results using this code.
