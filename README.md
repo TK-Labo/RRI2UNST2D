@@ -3,21 +3,23 @@
 https://github.com/user-attachments/assets/d922fac3-b09c-4861-9c57-251e41bb8a58
 
 ## Introduction
-このプロジェクトでは、降雨流出氾濫 (RRI: Rainfall-Runoff-Inundation) モデルと非構造格子二次元不定流モデル (UNST2D: Unstructured grid 2D unsteady flow model) を連携させ、降雨による流出・氾濫現象をより精度高くシミュレーションするためのモデルを開発しています。
-In this project, we are developing a model to more accurately simulate runoff and flooding phenomena caused by rainfall by linking the Rainfall-Runoff-Inundation (RRI) model with the Unstructured grid 2D unsteady flow model (UNST2D).
+このプロジェクトでは、降雨流出氾濫 (RRI: Rainfall-Runoff-Inundation) モデルと非構造格子二次元不定流モデル (UNST2D: Unstructured grid 2D unsteady flow model) を連携させ、降雨による流出・氾濫現象をより精度高くシミュレーションするためのモデルを開発しています。  
+In this project, we are developing a model to more accurately simulate runoff and flooding phenomena caused by rainfall by linking the Rainfall-Runoff-Inundation (RRI) model with the Unstructured grid 2D unsteady flow model (UNST2D).  
+
+降雨流出氾濫（RRI）モデルと非構造格子二次元不定流（UNST2D）モデルを結合し，連成計算が可能な解析法を提案しています．RRIモデルをベースに任意領域でUNST-2Dの分担範囲を選択し，RRIモデルで計算された流量フラックスをUNST-2Dモデルの外縁に境界条件として与え，UNST-2Dモデルで計算された水深を重複領域上にあるRRIモデルの各メッシュに水位として逐次返すことで，両モデルの計算結果を整合させながら連成計算を進めます．
 
 ## Citation
-このコードを利用した計算結果の公表・頒布に際しては、以下の論文を引用してください。
+このコードを利用した計算結果の公表・頒布に際しては、以下の論文を引用してください。  
 Please cite the following paper when publishing or distributing calculation results using this code.
 
-川池 健司, 井上 和也, 戸田 圭一 (2000) 非構造格子の都市氾濫解析への適用, 水工学論文集, 44: 461-466.
+川池健司, 井上和也, 戸田圭一 (2000) 非構造格子の都市氾濫解析への適用, 水工学論文集, 44: 461-466.  
 Kenji KAWAIKE, Kazuya INOUE, Kei-ichi TODA (2000) Applications of unstructured meshes to inundation flow analysis in urban area, Annual journal of Hydraulic Engineering, JSCE, 44, 461-466.
 https://doi.org/10.2208/prohe.44.461
 
-山村 孝輝, 西野 駿治, 山田 真史, 佐山 敬洋, 川池健司, 瀧健太郎 (2025) 流域治水計画検討のための降雨流出氾濫 (RRI) モデルと非構造格子二次元不定流 (UNST-2D) モデルの連成解析法の検討 河川技術論文集, 31: 469–474.
+山村孝輝, 西野駿治, 山田真史, 佐山敬洋, 川池健司, 瀧健太郎 (2025) 流域治水計画検討のための降雨流出氾濫 (RRI) モデルと非構造格子二次元不定流 (UNST-2D) モデルの連成解析法の検討，河川技術論文集, 31: 469–474.  
 Koki YAMAMURA, Shunji NISHINO, Masafumi YAMADA, Takahiro SAYAMA, Kenji KAWAIKE, Kentaro TAKI (2025) Proposal of coupled analysis of Rainfall-Runoff-Inundation (RRI) model and unstructured flood management planning, Advances in river engineering, JSCE, 31, 469-474.
 
-RRIモデルとの連成計算を行う場合は、あわせてRRIモデルのプログラム利用許諾規約にしたがってください。
+RRIモデルとの連成計算を行う場合は、あわせてRRIモデルのプログラム利用許諾規約にしたがってください。  
 If you are performing coupled calculations with the RRI model, please also quote the information specified in the license for the RRI model.
 https://www.pwri.go.jp/icharm/research/rri/index_j.html
 
@@ -26,8 +28,15 @@ https://www.pwri.go.jp/icharm/research/rri/index_j.html
 プロジェクトは次の主要なディレクトリとファイルで構成されています:
 
 - `src/`: Fortranソースコードが格納されたディレクトリ
-  - UNSTモデル関連のファイル（`UNST*.f90`）
+  - UNST2Dモデル関連のファイル（`UNST*.f90`）
   - Makefile
+
+The project consists of the following main directories and files:
+
+- `src/`: Directory where Fortran source code is stored
+  - UNST2D model related files（`UNST*.f90`）
+  - Makefile
+
 
 ## Compile
 RRIとUNST2Dによる連成計算を行うプログラム`RRI_UNST.exe`を生成する手順は以下の通りです。
@@ -36,27 +45,44 @@ RRIとUNST2Dによる連成計算を行うプログラム`RRI_UNST.exe`を生成
 2. RRIのソースコードに連成計算に必要なコードを追加してください。コードの追加方法については [Coupled calculation with the RRI model](#Coupled calculation with the RRI model) を参照してください。
 3. `src`ディレクトリで以下のコマンドを実行すると、`RRI_UNST.exe`が生成されます。
 
+The procedure for generating the program RRI_UNST.exe that performs coupled calculations using RRI and UNST2D is as follows.  
+  
+1. Among the RRI related codes, copy `RRI-CUI/source/1.4.2.7/*.f90` to the `src` directory of this project.
+2. Please add the code required for coupled calculation to the RRI source code. For how to add the code, see [Coupled calculation with the RRI model](#Coupled calculation with the RRI model).
+3. Execute the following command in the `src` directory to generate `RRI_UNST.exe`.
+
+
 ```bash
 make
 ```
 
+
 ## Run
-必要な入力ファイルを準備した後、以下のコマンドを実行すると計算が始まります:
+必要な入力ファイルを準備した後、以下のコマンドを実行すると計算が始まります:  
+After preparing the necessary input files, run the following command to start the calculation:
+
 ```bash
 ./RRI_UNST.exe
 ```
+
 ## Coupled calculation with the RRI model
 RRIモデルとの連成計算を行う場合、国立研究開発法人土木研究所よりRRIモデル（ver.1.4.2.7）を入手し、以下の手順に従って`RRI.f90`にコードを追加してください。以下の手順の (Line. 行数) で記載の行数は、`RRI.f90` (ver.1.4.2.7) の行数を表します。
-GNU patch コマンドが利用可能であれば、パッチ ファイル`modify_rri.patch`を用いて自動的に修正を適用できます。下記のコマンドで、`RRI.f90`を上書きします。
+GNU patch コマンドが利用可能であれば、パッチ ファイル`modify_rri.patch`を用いて自動的に修正を適用できます。下記のコマンドで、`RRI.f90`を上書きします。    
+  
+If you want to perform a coupled calculation with the RRI model, obtain the RRI model (ver.1.4.2.7) from the Public Works Research Institute and add the code to `RRI.f90` according to the following procedure. The line numbers in (Line.) in the following procedure refer to the line numbers in `RRI.f90` (ver.1.4.2.7). If you have the GNU patch command available, you can apply the modifications automatically using the patch file `modify_rri.patch`. Overwrite `RRI.f90` with the command below.
+  
+  
 ```bash
 patch RRI.f90 < modify_rri.patch
 ```
+  
 
-
-RRIモデルは以下のURLよりダウンロードできます。
+RRIモデルは以下のURLよりダウンロードできます。  
+The RRI model can be downloaded from the following URL.   
 https://www.pwri.go.jp/icharm/research/rri/index_j.html
-
-
+ 
+  
+    
 ### Additional Code for RRI.f90
 
 #### 1. Load Module after line.8 of RRI.f90 (ver.1.4.2.7).
@@ -205,9 +231,9 @@ This modification is for compiliation with gfortran.
 
 ## License
 
+Licensed under the [MIT](https://github.com/TK-Labo/RRI2UNST2D/blob/main/LICENSE) license.  
+  
 Copyright (c) 2025 K.Kawaike & TK Labo
-
-Licensed under the [MIT](https://github.com/TK-Labo/RRI2UNST2D/blob/main/LICENSE) license.
 
 ## Coded by
 
