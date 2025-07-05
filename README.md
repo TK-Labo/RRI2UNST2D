@@ -28,7 +28,7 @@ https://www.pwri.go.jp/icharm/research/rri/index_j.html
 プロジェクトは次の主要なディレクトリとファイルで構成されています:
 
 - `src/`: Fortranソースコードが格納されたディレクトリ
-  - UNSTモデル関連のファイル（`UNST*.f90`）
+  - UNST2Dモデル関連のファイル（`UNST*.f90`）
   - Makefile
 
 The project consists of the following main directories and files:
@@ -231,9 +231,9 @@ This modification is for compiliation with gfortran.
 
 ## License
 
+Licensed under the [MIT](https://github.com/TK-Labo/RRI2UNST2D/blob/main/LICENSE) license.  
+  
 Copyright (c) 2025 K.Kawaike & TK Labo
-
-Licensed under the [MIT](https://github.com/TK-Labo/RRI2UNST2D/blob/main/LICENSE) license.
 
 ## Coded by
 
