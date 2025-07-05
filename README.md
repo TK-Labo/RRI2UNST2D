@@ -33,8 +33,8 @@ https://www.pwri.go.jp/icharm/research/rri/index_j.html
 
 The project consists of the following main directories and files:
 
-- 'src/': Directory where Fortran source code is stored
-  - UNST2D model related files（'UNST*.f90'）
+- `src/`: Directory where Fortran source code is stored
+  - UNST2D model related files（`UNST*.f90`）
   - Makefile
 
 
