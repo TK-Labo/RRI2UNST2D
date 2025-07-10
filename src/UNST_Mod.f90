@@ -68,7 +68,8 @@ real(8), allocatable :: zbbk(:)
 real(8), allocatable :: qr_sum(:)
 
 ! 1driv k.kawaike
-integer str_type, count1, count2, count3, count4
+integer, parameter :: str_type = 0  ! 2507 廃止予定
+integer count1, count2, count3, count4
 real(8), allocatable :: unstc(:), co(:), cr(:), str(:), stro(:), strmx(:)
 real(8) qout, dvr, vrain, sv0, v_minus_all, v_minus(100), phi(100)
 real(8) svc, v_cminus, v_cplus, v_cextre !tracer
