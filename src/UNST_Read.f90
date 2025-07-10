@@ -44,7 +44,7 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     read(10, 1002) dpout
     read(10, 1002) ocpy
     read(10, 1002) unstbeta
-    read(10, 1003) str_type
+    ! read(10, 1003) str_type  2507 廃止予定
     read(10, *)
 
     ! filename set
@@ -108,13 +108,13 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     read(10, *)
 
     ! 遺伝的アルゴリズム set
-    read(10, 1003) ga
+    ! read(10, 1003) ga
     ! filename
-    read(10, 1009) fga
-    read(10, 1009) fpaddy_cluster
-    read(10,*) paddyclass
-    read(10, *)
-    read(10, *)
+    ! read(10, 1009) fga
+    ! read(10, 1009) fpaddy_cluster
+    ! read(10,*) paddyclass
+    ! read(10, *)
+    ! read(10, *)
 
     read(10, 1009) fh
     read(10, 1009) fhmx
@@ -182,10 +182,10 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     open(40, file = frn, action = 'read')
 
     ! 遺伝的アルゴリズム add
-    if(ga==1) then
-        open(41, file = fga, action = 'read')
-        open(42, file = fpaddy_cluster, action = 'read')
-    endif
+    ! if(ga==1) then
+    !     open(41, file = fga, action = 'read')
+    !     open(42, file = fpaddy_cluster, action = 'read')
+    ! endif
 
     ! output file set
     if(str_type==1) then
@@ -658,22 +658,22 @@ subroutine paddydat
     endif
     close(33)
 
-    ! 遺伝的アルゴリズム　add
-    if(ga==1) then
-        allocate( genes(paddyclass) )
-        read(41, *) (genes(pa), pa = 1, paddyclass)
-        close(41)
+    ! 遺伝的アルゴリズム　add  2507 廃止予定
+    ! if(ga==1) then
+    !     allocate( genes(paddyclass) )
+    !     read(41, *) (genes(pa), pa = 1, paddyclass)
+    !     close(41)
 
-        allocate( paddycluster(mesh) )
-        do me = 1, mesh
-            read(42,*) paddycluster(me)
-            if(paddycluster(me) > 0) then
-                device(paddyid(me)) = genes(paddycluster(me))
-            endif
-        enddo
-        close(42)
-        deallocate(paddycluster)
-    endif
+    !     allocate( paddycluster(mesh) )
+    !     do me = 1, mesh
+    !         read(42,*) paddycluster(me)
+    !         if(paddycluster(me) > 0) then
+    !             device(paddyid(me)) = genes(paddycluster(me))
+    !         endif
+    !     enddo
+    !     close(42)
+    !     deallocate(paddycluster)
+    ! endif
 
     ! paddy field parameters
     read(36, 1361) lh           ! 畦畔高
