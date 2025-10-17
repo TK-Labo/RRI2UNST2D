@@ -89,6 +89,10 @@ https://www.pwri.go.jp/icharm/research/rri/index_j.html
 ```diff
  use globals
 +use unst_globals_mod
++unst_write_procedures
++use unst_wrfile
++use unst_prewrfile
++use unst_read
 ```
 
 #### 2. Add Variables after line.67 of RRI.f90 (ver.1.4.2.7).
@@ -129,6 +133,8 @@ This modification is for compiliation with gfortran.
 +    ny, nx, lasth, dt, &
 +    xllcorner_rain, yllcorner_rain, cellsize_rain_x, cellsize_rain_y, &
 +    xllcorner, yllcorner, cellsize)
++call open_unst_output_files
++if(dsmesh==1) call dsmeshdat(lasth)
 +if(plantFN==1) call plantFNdat
 +if(plantDa==1) call plantDadat
 +if(paddydam==1) call paddydat
@@ -138,14 +144,6 @@ This modification is for compiliation with gfortran.
 +call unst_initiald
 +if(paddydam==1) call paddyinitiald
 +if(drainarea==1) call draininitiald
-+
-+if(str_type == 0) then
-+  phi(61) = 0.20d0
-+  phi(63) = 0.20d0
-+elseif(str_type == 1) then
-+  phi(61) = 0.05d0
-+  phi(63) = 0.20d0
-+endif
 +
 +call diskwrite
 +call dispwrite
@@ -172,7 +170,13 @@ This modification is for compiliation with gfortran.
 + call unst_qin(ny, nx, i4, qr_ave, qs_ave, hr, hs, area, time, uflg)
 + if(mod(time, timmax) == 0 .and. uflg==0) call predispwrite(time)
 + if(mod(time, timmax) == 0 .and. uflg==0) call prediskwrite(time)
-+ if(mod(time, timmax) == 0 .and. uflg==1) call UNST(ny, nx, domain, riv, area, time, hs, hr)
++ if(mod(time, timmax) == 0 .and. uflg==1) then
++  call UNST2D(ny, nx, domain, riv, area, time, hs, hr)
++
++  ! calculate river and slope interaction
++  call funcrs(hr, hs)
++  write(*,*) 'UNST >>> RRI h replaced'
++ endif
 +
   ! check water balance
   if(mod(t, 1).eq.0) then
@@ -214,15 +218,13 @@ This modification is for compiliation with gfortran.
 +deallocate(um, umo, umm, uu, vn, vno, vnm, vv)
 +deallocate(mn, rnof, lambda, rbeta, umbeta, vnbeta)
 +deallocate(uum, vvm, lhan, lhano, qr_sum, rnx, dl)
-+deallocate(unstc, co, str, stro, strmx)
 +if(plantFN==1) deallocate(plantF_array, plantN_array)
 +if(plantDa==1) deallocate(plant_D_array, plant_a_array, dk_val)
 +if(paddydam==1) deallocate(paddyid, pqout_idx, pdrain, min_pmeshid, device)
 +if(paddydam==1) deallocate(orifice_num, min_dist, psmesh, dr_dist, dhp, phid)
 +if(paddydam==1) deallocate(paddy_q, pqh, drain2phidx)
 +if(drainarea==1) deallocate(inf_dr, drp, drr, drr_dist, dhj)
-+if(dsmesh==1) deallocate(dsdt, dsinf, dsupper, dsfilter2)
-+if(ga==1) deallocate(genes)
++if(dsmesh==1) deallocate(ds_dt, ds_inf, ds_upper, ds_wl)
 +
  !pause
 

@@ -41,33 +41,34 @@ do i = 1, iqnum
     id = limesh(inl(i),1)
 
     ! x方向の流量計算 (RRI斜面方向からUNST方向への変換)
-    qu(i) = (qs_ave(1, rsetsu_i(id), rsetsu_j(id)) + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) - qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
+    qu(i) = (qs_ave(1, rsetsu_i(id), rsetsu_j(id)) &
+        + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) &
+            - qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
 
     ! y方向の流量計算 (RRI斜面方向からUNST方向への変換)
-    qv(i) =  (qs_ave(2, rsetsu_i(id), rsetsu_j(id)) + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) + qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
+    qv(i) =  (qs_ave(2, rsetsu_i(id), rsetsu_j(id)) &
+        + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) &
+            + qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
 
     ! 流入流量の計算
     qin(i, ii) = abs(qr_ave(rsetsu_i(id), rsetsu_j(id)))
     qinu(i, ii) = qu(i)
     qinv(i, ii) = qv(i)
-
-    ! 流入判定フラグの設定
-    ! 流入がある場合　uflg = 1
-    ! 流入がない場合　uflg = 0
-    !$omp critical
-    if(uflg == 0) then
-        if(any(qin > 0.0d0)) uflg = 1
-        if(any(hr > 0.0d0)) uflg = 1
-        if(any(hs > 0.0d0)) uflg = 1
-    end if
-    !$omp end critical
-
 end do
 !$omp end parallel do
 
+! 流入判定フラグの設定
+! 流入がある場合　uflg = 1
+! 流入がない場合　uflg = 0
+if (any(qin > 0.0d0) .or. any(hr > 0.0d0) .or. any(hs > 0.0d0)) then
+    uflg = 1
+else
+    uflg = 0
+endif
+
 ! 結果をファイルに出力
-write(100103, '(A8, f8.1)') 'time = ', time
-write(100103, '(10f14.5)') (qin(i, ii), i = 1, iqnum)
+write(fkyokaiq_unit, '(A8, f8.1)') 'time = ', time
+write(fkyokaiq_unit, '(10f14.5)') (qin(i, ii), i = 1, iqnum)
 
 end subroutine unst_qin
 
@@ -84,20 +85,24 @@ end subroutine unst_qin
 !   hs: RRIの斜面水深（更新される）
 !   hr: RRIの河川水深（更新される）
 !-----------------------------------------------------------------------
-subroutine unst2rri(ny, nx, domain, riv, area, hs, hr)
+subroutine unst2rri(ny, nx, domain, riv, hs, hr)
     use unst_globals_mod
     implicit none
 
     integer, intent(in) :: ny, nx
     integer, intent(in) :: domain(ny, nx), riv(ny, nx)
-    real(8), intent(in) :: area
     real(8), intent(inout) :: hs(ny,nx), hr(ny,nx)
 
-    real(8) hsmxdif(ny,nx), hsmindif(ny,nx), hrmxdif(ny,nx), hrmindif(ny,nx)
-    real(8) hrr(ny,nx)
+    real(8), allocatable :: hsmxdif(:, :), hsmindif(:, :), hrmxdif(:, :), hrmindif(:, :)
+    real(8), allocatable :: hrr(:, :)
     integer i, j, me
-    integer counthr(ny,nx), counths(ny,nx), counthrr(ny,nx)
-    real(8) minbaseo(ny, nx)
+    integer, allocatable :: counthr(:, :), counths(:, :), counthrr(:, :)
+    real(8), allocatable :: minbaseo(:, :)
+    integer, allocatable :: u_to_r_update(:, :)
+
+    allocate(hsmxdif(ny,nx), hsmindif(ny,nx), hrmxdif(ny,nx), hrmindif(ny,nx))
+    allocate(hrr(ny,nx), counthr(ny,nx), counths(ny,nx), counthrr(ny,nx), minbaseo(ny, nx))
+    allocate(u_to_r_update(ny,nx))
 
     ! 配列の初期化
     counthr = 0
@@ -109,6 +114,7 @@ subroutine unst2rri(ny, nx, domain, riv, area, hs, hr)
     hrmindif = 0.0d0
     hrr = 0.0d0
     minbaseo = 99999999.0d0
+    u_to_r_update = 0
 
     ! UNST各メッシュからRRIメッシュへの水深データ転送（集計）
     do me = 1, mesh
@@ -156,13 +162,16 @@ subroutine unst2rri(ny, nx, domain, riv, area, hs, hr)
         j = rsetsu_j(me)
         if (domain(i,j) == 0) cycle
         if(baseo(me) == -9999.0d0) cycle
+        if(u_to_r_update(i,j) == 1) cycle
 
         if (riv(i,j) /= 0) then
             ! 河川セルの場合の平均化
             if(counthr(i,j) > 0) then
                 hr(i,j) = hr(i,j) / counthr(i,j)
+                u_to_r_update(i,j) = 1
             elseif(counthr(i,j) == 0) then
                 hr(i,j) = hrr(i,j) / counthrr(i,j)
+                u_to_r_update(i,j) = 1
             endif
         else
             ! 斜面セルの場合の平均化
@@ -170,8 +179,7 @@ subroutine unst2rri(ny, nx, domain, riv, area, hs, hr)
         endif
     enddo
 
-    ! 河川と斜面の相互作用を計算
-    call funcrs(hr, hs)
-    write(*,*) 'UNST >>> RRI h replaced'
+    deallocate(hsmxdif, hsmindif, hrmxdif, hrmindif)
+    deallocate(hrr, counthr, counths, counthrr, minbaseo, u_to_r_update)
 
 end subroutine unst2rri
