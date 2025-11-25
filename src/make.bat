@@ -41,7 +41,7 @@ REM ビルド用ディレクトリ (中間ファイルの出力先)
 set BUILD_DIR=build
 
 REM モジュールが含まれるファイル名(拡張子なし) - コンパイル順序に注意
-set UNST_MODULE_FNAME=UNST_Mod UNST_Write UNST_Read
+set UNST_MODULE_FNAME=UNST_Mod UNST_Write UNST_Read UNST_Sub
 set RRI_MODULE_FNAME=RRI_Mod RRI_Mod2 RRI_Mod_Dam RRI_Mod_Tecout
 
 REM メインプログラムが含まれるファイル名(拡張子なし)
@@ -205,4 +205,5 @@ if errorlevel 1 (
 
 echo ==== success build ====
 echo .exe: %BUILD_DIR%\%TARGET%
+
 pause
