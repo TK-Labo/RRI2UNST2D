@@ -1,23 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Simple patch file applicator for Windows
+改善版パッチ適用スクリプト
 Usage: python apply_patch.py <patch_file> <target_file>
-Example: python apply_patch.py modify_rri.patch RRI.f90
 """
 
 import sys
 import re
 from pathlib import Path
 
+def normalize_line(line):
+    """行を正規化（改行コード統一、末尾空白除去は慎重に）"""
+    # 改行コードを統一
+    return line.replace('\r\n', '\n').replace('\r', '\n')
+
 def parse_unified_diff(patch_content):
     """Parse unified diff format patch"""
-    lines = patch_content.strip().split('\n')
+    lines = normalize_line(patch_content).strip().split('\n')
     hunks = []
     current_hunk = None
     
     for line in lines:
-        # Hunk header: @@ -start,count +start,count @@
         if line.startswith('@@'):
             match = re.match(r'@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@', line)
             if match:
@@ -37,14 +40,11 @@ def parse_unified_diff(patch_content):
                     'lines': []
                 }
         elif current_hunk is not None:
-            # Skip file headers
             if line.startswith('---') or line.startswith('+++'):
                 continue
-            # Context, addition, or deletion
             if line.startswith(' ') or line.startswith('+') or line.startswith('-'):
                 current_hunk['lines'].append(line)
             elif line.startswith('\\'):
-                # "\ No newline at end of file"
                 continue
     
     if current_hunk:
@@ -52,18 +52,67 @@ def parse_unified_diff(patch_content):
     
     return hunks
 
-def apply_patch(target_file, patch_file):
+def verify_hunk_context(target_lines, hunk, start_pos):
+    """ハンクがこの位置に適用可能か検証"""
+    target_idx = start_pos
+    
+    for line in hunk['lines']:
+        if line.startswith(' ') or line.startswith('-'):
+            # コンテキスト行または削除行は元ファイルと一致すべき
+            if target_idx >= len(target_lines):
+                return False
+            
+            expected = normalize_line(line[1:])
+            actual = normalize_line(target_lines[target_idx].rstrip('\n'))
+            
+            # 厳密比較と緩い比較の両方を試す
+            if expected.rstrip() != actual.rstrip():
+                print(f"  ミスマッチ検出 行{target_idx + 1}:")
+                print(f"    期待: '{expected.rstrip()}'")
+                print(f"    実際: '{actual.rstrip()}'")
+                return False
+            
+            target_idx += 1
+        elif line.startswith('+'):
+            # 追加行は検証不要
+            continue
+    
+    return True
+
+def find_hunk_position(target_lines, hunk, suggested_pos):
+    """ハンクを適用できる位置を探す"""
+    # まず指定位置を試す
+    if verify_hunk_context(target_lines, hunk, suggested_pos):
+        return suggested_pos
+    
+    print(f"  警告: 行{suggested_pos + 1}では適用できません。近傍を検索中...")
+    
+    # 前後10行の範囲で検索
+    for offset in range(-10, 11):
+        test_pos = suggested_pos + offset
+        if 0 <= test_pos < len(target_lines):
+            if verify_hunk_context(target_lines, hunk, test_pos):
+                print(f"  → 行{test_pos + 1}で適用可能な位置を発見")
+                return test_pos
+    
+    return None
+
+def apply_patch(target_file, patch_file, output_file=None, fuzzy=True):
     """Apply patch to target file"""
     
-    # Read files
+    # Read target file
     try:
         with open(target_file, 'r', encoding='utf-8') as f:
-            target_lines = f.readlines()
+            target_lines = [normalize_line(line) for line in f.readlines()]
     except UnicodeDecodeError:
-        # Try with different encoding
-        with open(target_file, 'r', encoding='shift_jis') as f:
-            target_lines = f.readlines()
+        try:
+            with open(target_file, 'r', encoding='shift_jis') as f:
+                target_lines = [normalize_line(line) for line in f.readlines()]
+        except UnicodeDecodeError:
+            with open(target_file, 'r', encoding='cp932') as f:
+                target_lines = [normalize_line(line) for line in f.readlines()]
     
+    # Read patch file
     with open(patch_file, 'r', encoding='utf-8') as f:
         patch_content = f.read()
     
@@ -71,75 +120,114 @@ def apply_patch(target_file, patch_file):
     hunks = parse_unified_diff(patch_content)
     
     if not hunks:
-        print("警告: パッチファイルにハンク(変更箇所)が見つかりませんでした")
-        print("パッチファイルの形式を確認してください")
+        print("エラー: パッチファイルにハンクが見つかりません")
         return False
     
-    # Apply hunks with cumulative offset
+    print(f"パッチ解析完了: {len(hunks)}個のハンクを検出")
+    print(f"対象ファイル: {len(target_lines)}行\n")
+    
+    # Apply hunks
     line_offset = 0
     
-    for hunk in hunks:
-        # Adjust starting position based on previous changes
-        old_start = hunk['old_start'] - 1 + line_offset  # Convert to 0-based
+    for i, hunk in enumerate(hunks, 1):
+        print(f"ハンク {i}/{len(hunks)} 処理中...")
         
-        # Build new content for this hunk
+        # Calculate adjusted position
+        suggested_pos = hunk['old_start'] - 1 + line_offset
+        
+        # Find correct position (with fuzzy matching if enabled)
+        if fuzzy:
+            actual_pos = find_hunk_position(target_lines, hunk, suggested_pos)
+            if actual_pos is None:
+                print(f"エラー: ハンク{i}を適用できる位置が見つかりません")
+                print(f"  期待位置: 行{hunk['old_start']}")
+                return False
+        else:
+            if not verify_hunk_context(target_lines, hunk, suggested_pos):
+                print(f"エラー: ハンク{i}のコンテキストが一致しません")
+                return False
+            actual_pos = suggested_pos
+        
+        # Build new content
         new_content = []
-        old_line_idx = old_start
+        old_line_idx = actual_pos
         
         for line in hunk['lines']:
             if line.startswith(' '):
-                # Context line - copy from original
+                # Context line
                 if old_line_idx < len(target_lines):
                     new_content.append(target_lines[old_line_idx])
                     old_line_idx += 1
             elif line.startswith('-'):
-                # Line to remove - skip it
+                # Delete line
                 old_line_idx += 1
             elif line.startswith('+'):
-                # Line to add
+                # Add line
                 content = line[1:]
                 if not content.endswith('\n'):
                     content += '\n'
                 new_content.append(content)
         
-        # Calculate how many lines to replace
+        # Calculate replacement range
         lines_to_remove = sum(1 for l in hunk['lines'] if l.startswith(' ') or l.startswith('-'))
+        end_idx = actual_pos + lines_to_remove
         
-        # Replace the section
-        end_idx = old_start + lines_to_remove
-        target_lines[old_start:end_idx] = new_content
+        # Apply hunk
+        target_lines[actual_pos:end_idx] = new_content
         
-        # Update offset for next hunk
+        # Update offset
         lines_added = len(new_content)
         line_offset += (lines_added - lines_to_remove)
         
-        print(f"ハンク適用: 行 {hunk['old_start']} 付近 ({lines_to_remove}行削除, {lines_added}行追加)")
+        print(f"  - 適用完了: 行{actual_pos + 1} ({lines_to_remove}行削除, {lines_added}行追加)\n")
     
-    # Write back
-    backup_file = target_file + '.orig'
-    if Path(backup_file).exists():
-        # If backup exists, add timestamp
-        import datetime
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_file = f"{target_file}.orig.{timestamp}"
+    # Determine output file
+    if output_file is None:
+        # Default: overwrite original (with backup)
+        backup_file = target_file + '.orig'
+        if Path(backup_file).exists():
+            import datetime
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_file = f"{target_file}.orig.{timestamp}"
+        
+        Path(target_file).rename(backup_file)
+        print(f" - バックアップ作成: {backup_file}")
+        output_path = target_file
+    else:
+        # Write to new file
+        output_path = output_file
+        print(f" - 元のファイルは保持: {target_file}")
     
-    Path(target_file).rename(backup_file)
-    print(f"元のファイルを {backup_file} にバックアップしました")
-    
-    with open(target_file, 'w', encoding='utf-8') as f:
+    # Write result
+    with open(output_path, 'w', encoding='utf-8', newline='\n') as f:
         f.writelines(target_lines)
     
-    print(f"パッチを {target_file} に適用しました")
+    print(f"- パッチ適用完了: {output_path}\n")
     return True
 
 def main():
-    if len(sys.argv) != 3:
-        print("使い方: python apply_patch.py <patch_file> <target_file>")
-        print("例: python apply_patch.py modify_rri.patch RRI.f90")
+    if len(sys.argv) < 3:
+        print("使い方: python apply_patch.py <patch_file> <target_file> [output_file] [--strict]")
+        print("  output_file: 出力ファイル名（省略時は元ファイルを上書き）")
+        print("  --strict: あいまい検索を無効化（完全一致のみ）")
+        print("\n例:")
+        print("  python apply_patch.py modify_rri.patch 1.4.2.7/RRI.f90")
+        print("  python apply_patch.py modify_rri.patch 1.4.2.7/RRI.f90 1.4.2.7/RRI_UNST.f90")
+        print("  python apply_patch.py modify_rri.patch 1.4.2.7/RRI.f90 1.4.2.7/RRI_UNST.f90 --strict")
         sys.exit(1)
     
     patch_file = sys.argv[1]
     target_file = sys.argv[2]
+    
+    # Parse optional arguments
+    output_file = None
+    fuzzy = True
+    
+    for arg in sys.argv[3:]:
+        if arg == '--strict':
+            fuzzy = False
+        elif not arg.startswith('--'):
+            output_file = arg
     
     if not Path(patch_file).exists():
         print(f"エラー: パッチファイル '{patch_file}' が見つかりません")
@@ -150,9 +238,10 @@ def main():
         sys.exit(1)
     
     try:
-        apply_patch(target_file, patch_file)
+        success = apply_patch(target_file, patch_file, output_file, fuzzy)
+        sys.exit(0 if success else 1)
     except Exception as e:
-        print(f"エラーが発生しました: {e}")
+        print(f"\nエラーが発生しました: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
