@@ -1,0 +1,208 @@
+@echo off
+setlocal enabledelayedexpansion
+REM==============================================================================
+REM RRI-UNST連携モデル用make.bat (Windows)
+REM
+REM 使い方:
+REM   .\make.bat        : プログラムをコンパイルして実行ファイルを生成
+REM
+REM 最終更新:
+REM==============================================================================
+REM -------------------------------------------
+REM  コンパイラの選択
+REM -------------------------------------------
+REM set COMPILER=ifx
+set COMPILER=gfortran
+
+REM コンパイラごとの設定
+if /I "%COMPILER%"=="gfortran" (
+    set FC=gfortran
+    set OPTIONS=-O2 -fopenmp -cpp -ffree-line-length-none
+    set MOD_FLAG=-J
+    set OBJ_FLAG=-o
+    set OSUFFIX=.o
+) else (
+    REM Intel Fortran (ifx)
+    set FC=ifx
+    set OPTIONS=/nologo /O2 /Qopenmp /Qiopenmp
+    set MOD_FLAG=/module:
+    set OBJ_FLAG=/object:
+    set OSUFFIX=.obj
+)
+
+REM ソースディレクトリ
+set UNST_DIR=unst_src
+set RRI_DIR=1.4.2.7
+
+REM ソースファイルの拡張子
+set FSUFFIX=.f90
+
+REM ビルド用ディレクトリ (中間ファイルの出力先)
+set BUILD_DIR=build
+
+REM モジュールが含まれるファイル名(拡張子なし) - コンパイル順序に注意
+set UNST_MODULE_FNAME=UNST_Mod UNST_Write UNST_Read
+set RRI_MODULE_FNAME=RRI_Mod RRI_Mod2 RRI_Mod_Dam RRI_Mod_Tecout
+
+REM メインプログラムが含まれるファイル名(拡張子なし)
+set MAIN_FNAME=RRI_UNST
+
+REM 除外対象ファイル名
+set EXCLUDE_FNAME=RRI_Break
+
+REM 実行ファイル名
+set TARGET=RRI_UNST.exe
+
+REM -------------------------------------------
+REM  STAGE-0 : ディレクトリ準備
+REM -------------------------------------------
+echo STAGE-0 Directory Setup
+set OBJ_DIR=%BUILD_DIR%\obj
+set MOD_DIR=%BUILD_DIR%\mod
+
+REM ディレクトリの確認・生成
+if exist "%BUILD_DIR%" rmdir /s /q "%BUILD_DIR%"
+mkdir "%OBJ_DIR%"
+mkdir "%MOD_DIR%"
+
+REM -------------------------------------------
+REM  STAGE-1 : UNSTモジュールのコンパイル
+REM -------------------------------------------
+echo STAGE-1 Compiling UNST Modules
+
+if /I "%COMPILER%"=="gfortran" (
+    set FFLAGS=%OPTIONS% -c %MOD_FLAG%"%MOD_DIR%"
+) else (
+    set FFLAGS=%OPTIONS% /c %MOD_FLAG%"%MOD_DIR%" %OBJ_FLAG%"%OBJ_DIR%\\"
+)
+
+for %%f in (%UNST_MODULE_FNAME%) do (
+    echo [Compiling Module] %UNST_DIR%\%%f%FSUFFIX%
+    if /I "%COMPILER%"=="gfortran" (
+        "%FC%" %FFLAGS% -o "%OBJ_DIR%\%%f%OSUFFIX%" "%UNST_DIR%\%%f%FSUFFIX%"
+    ) else (
+        "%FC%" %FFLAGS% "%UNST_DIR%\%%f%FSUFFIX%"
+    )
+    if errorlevel 1 (
+        echo *** ERROR Compile Module: %UNST_DIR%\%%f%FSUFFIX% ***
+        exit /b 1
+    )
+)
+
+REM -------------------------------------------
+REM  STAGE-2 : UNSTソースのコンパイル
+REM -------------------------------------------
+echo STAGE-2 Compiling UNST Sources
+
+for %%f in (%UNST_DIR%\*%FSUFFIX%) do (
+    set skip=false
+    set fname=%%~nf
+    
+    REM モジュールファイルはスキップ
+    for %%m in (%UNST_MODULE_FNAME%) do (
+        if /I "!fname!"=="%%m" set skip=true
+    )
+    
+    if "!skip!"=="false" (
+        echo [Compiling] %%f
+        if /I "%COMPILER%"=="gfortran" (
+            "%FC%" %FFLAGS% -I"%MOD_DIR%" -o "%OBJ_DIR%\!fname!%OSUFFIX%" "%%f"
+        ) else (
+            "%FC%" %FFLAGS% /I"%MOD_DIR%" "%%f"
+        )
+        if errorlevel 1 (
+            echo *** ERROR Compile: %%f ***
+            exit /b 1
+        )
+    )
+)
+
+REM -------------------------------------------
+REM  STAGE-3 : RRIモジュールのコンパイル
+REM -------------------------------------------
+echo STAGE-3 Compiling RRI Modules
+
+for %%f in (%RRI_MODULE_FNAME%) do (
+    echo [Compiling Module] %RRI_DIR%\%%f%FSUFFIX%
+    if /I "%COMPILER%"=="gfortran" (
+        "%FC%" %FFLAGS% -I"%MOD_DIR%" -o "%OBJ_DIR%\%%f%OSUFFIX%" "%RRI_DIR%\%%f%FSUFFIX%"
+    ) else (
+        "%FC%" %FFLAGS% /I"%MOD_DIR%" "%RRI_DIR%\%%f%FSUFFIX%"
+    )
+    if errorlevel 1 (
+        echo *** ERROR Compile Module: %RRI_DIR%\%%f%FSUFFIX% ***
+        exit /b 1
+    )
+)
+
+REM -------------------------------------------
+REM  STAGE-4 : RRIソースのコンパイル
+REM -------------------------------------------
+echo STAGE-4 Compiling RRI Sources
+
+for %%f in (%RRI_DIR%\*%FSUFFIX%) do (
+    set skip=false
+    set fname=%%~nf
+    
+    REM モジュールファイルとメインプログラムはスキップ
+    for %%m in (%RRI_MODULE_FNAME% %MAIN_FNAME%) do (
+        if /I "!fname!"=="%%m" set skip=true
+        if /I "!fname!"=="%EXCLUDE_FNAME%" set skip=true
+    )
+    
+    if "!skip!"=="false" (
+        echo [Compiling] %%f
+        REM gfortran用とifx用で分岐
+        if /I "%COMPILER%"=="gfortran" (
+            "%FC%" %FFLAGS% -I"%MOD_DIR%" -o "%OBJ_DIR%\!fname!%OSUFFIX%" "%%f"
+        ) else (
+            "%FC%" %FFLAGS% /I"%MOD_DIR%" "%%f"
+        )
+        if errorlevel 1 (
+            echo *** ERROR Compile: %%f ***
+            exit /b 1
+        )
+    )
+)
+
+REM -------------------------------------------
+REM  STAGE-5 : メインプログラムのコンパイル
+REM -------------------------------------------
+echo STAGE-5 Compiling Main Program
+
+echo [Compiling Main] %RRI_DIR%\%MAIN_FNAME%%FSUFFIX%
+if /I "%COMPILER%"=="gfortran" (
+    "%FC%" %FFLAGS% -I"%MOD_DIR%" -o "%OBJ_DIR%\%MAIN_FNAME%%OSUFFIX%" "%RRI_DIR%\%MAIN_FNAME%%FSUFFIX%"
+) else (
+    "%FC%" %FFLAGS% /I"%MOD_DIR%" "%RRI_DIR%\%MAIN_FNAME%%FSUFFIX%"
+)
+if errorlevel 1 (
+    echo *** ERROR Compile Main: %RRI_DIR%\%MAIN_FNAME%%FSUFFIX% ***
+    exit /b 1
+)
+
+REM -------------------------------------------
+REM  STAGE-6 : リンク処理
+REM -------------------------------------------
+echo STAGE-6 Linking
+
+set OBJ_LIST=
+if /I "%COMPILER%"=="gfortran" (
+    for %%f in ("%OBJ_DIR%\*.o") do set OBJ_LIST=!OBJ_LIST! "%%f"
+) else (
+    for %%f in ("%OBJ_DIR%\*.obj") do set OBJ_LIST=!OBJ_LIST! "%%f"
+)
+
+if /I "%COMPILER%"=="gfortran" (
+    "%FC%" %OPTIONS% !OBJ_LIST! -o "%BUILD_DIR%\%TARGET%"
+) else (
+    "%FC%" !OBJ_LIST! /exe:"%BUILD_DIR%\%TARGET%"
+)
+if errorlevel 1 (
+    echo *** ERROR Link ***
+    exit /b 1
+)
+
+echo ==== success build ====
+echo .exe: %BUILD_DIR%\%TARGET%
+pause
