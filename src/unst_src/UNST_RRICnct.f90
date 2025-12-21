@@ -29,33 +29,62 @@ real(8), intent(in) :: hs(ny,nx), hr(ny,nx)
 real(8), intent(in) :: area, time
 integer, intent(inout) :: uflg
 
-real(8) qu(iqnum), qv(iqnum)
+real(8) qu(iqnum), qv(iqnum), hr_and_hs(iqnum)
 integer i, ii, id
 
 ! 現在の時間ステップのインデックスを計算
 ii = int(time/dtq) + 1
 
-!$omp parallel do default(shared),private(i, id)
-do i = 1, iqnum
-    ! 対応するRRIメッシュのIDを取得
-    id = limesh(inl(i),1)
+if(qin_type==0) then
+    !$omp parallel do default(shared),private(i, id)
+    do i = 1, iqnum
+        ! 対応するRRIメッシュのIDを取得
+        id = limesh(inl(i),1)
 
-    ! x方向の流量計算 (RRI斜面方向からUNST方向への変換)
-    qu(i) = (qs_ave(1, rsetsu_i(id), rsetsu_j(id)) &
-        + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) &
-            - qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
+        ! x方向の流量計算 (RRI斜面方向からUNST方向への変換)
+        qu(i) = (qs_ave(1, rsetsu_i(id), rsetsu_j(id)) &
+            + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) &
+                - qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
 
-    ! y方向の流量計算 (RRI斜面方向からUNST方向への変換)
-    qv(i) =  (qs_ave(2, rsetsu_i(id), rsetsu_j(id)) &
-        + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) &
-            + qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
+        ! y方向の流量計算 (RRI斜面方向からUNST方向への変換)
+        qv(i) =  (qs_ave(2, rsetsu_i(id), rsetsu_j(id)) &
+            + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) &
+                + qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
 
-    ! 流入流量の計算
-    qin(i, ii) = abs(qr_ave(rsetsu_i(id), rsetsu_j(id)))
-    qinu(i, ii) = qu(i)
-    qinv(i, ii) = qv(i)
-end do
-!$omp end parallel do
+        ! 流入流量の計算
+        qin(i, ii) = abs(qr_ave(rsetsu_i(id), rsetsu_j(id)))
+        qinu(i, ii) = qu(i)
+        qinv(i, ii) = qv(i)
+    end do
+    !$omp end parallel do
+elseif(qin_type==1) then
+    !$omp parallel do default(shared),private(i, id)
+    do i = 1, iqnum
+        ! 対応するRRIメッシュのIDを取得
+        id = limesh(inl(i),1)
+
+        ! x方向の流量計算 (RRI斜面方向からUNST方向への変換)
+        qu(i) = (qs_ave(1, rsetsu_i(id), rsetsu_j(id)) &
+            + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) &
+                - qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
+
+        ! y方向の流量計算 (RRI斜面方向からUNST方向への変換)
+        qv(i) =  (qs_ave(2, rsetsu_i(id), rsetsu_j(id)) &
+            + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) &
+                + qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
+
+        ! Cal Volume(m3)  v.1.0.5
+        hr_and_hs(i) = hs(rsetsu_i(id), rsetsu_j(id))*area &
+            + hr(rsetsu_i(id), rsetsu_j(id))*vin_coef(i)
+        
+        ! 流入流量の計算
+        qin(i, ii) = qr_ave(rsetsu_i(id), rsetsu_j(id))  ! update v.1.0.5
+        qinu(i, ii) = qu(i)
+        qinv(i, ii) = qv(i)
+        vin(i, ii) = hr_and_hs(i)  ! update v.1.0.5
+    end do
+    !$omp end parallel do
+endif
 
 ! 流入判定フラグの設定
 ! 流入がある場合　uflg = 1
@@ -68,7 +97,11 @@ endif
 
 ! 結果をファイルに出力
 write(fkyokaiq_unit, '(A8, f8.1)') 'time = ', time
-write(fkyokaiq_unit, '(10f14.5)') (qin(i, ii), i = 1, iqnum)
+if(qin_type==0) then
+    write(fkyokaiq_unit, '(10f14.5)') (qin(i, ii), i = 1, iqnum)
+elseif(qin_type==1) then
+    write(fkyokaiq_unit, '(10f14.5)') (vin(i, ii), i = 1, iqnum)
+endif
 
 end subroutine unst_qin
 

@@ -1,6 +1,6 @@
 --- 1.4.2.7/RRI.f90	2023-11-22 09:46:40.000000000 +0900
-+++ 1.4.2.7/RRI_UNST.f90	2025-09-25 13:24:36.890973500 +0900
-@@ -6,6 +6,11 @@
++++ 1.4.2.7/RRI_UNST.f90	2025-12-25 00:00:00.000000000 +0900
+@@ -6,6 +6,13 @@
  !
  program RRI
  use globals
@@ -9,10 +9,12 @@
 +use unst_wrfile
 +use unst_prewrfile
 +use unst_read
++use d1riv_globals_mod
++use unst_d1riv_read
  use runge_mod
  use dam_mod, only: dam_switch, dam_vol_temp
  use tecout_mod
-@@ -66,6 +71,9 @@
+@@ -66,6 +73,9 @@
  character*256 ofile_ro, outdir1, outdir2
  integer kk, l
  
@@ -22,7 +24,7 @@
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  !!! STEP 0: FILE NAME AND PARAMETER SETTING
  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-@@ -506,6 +514,7 @@
+@@ -506,6 +516,7 @@
    read(11, *, iostat = ios) (rdummy, j = 1, nx_rain)
   enddo
   if( ios.lt.0 ) exit
@@ -30,7 +32,7 @@
   tt = tt + 1
  enddo
  tt_max_rain = tt - 1
-@@ -526,6 +535,8 @@
+@@ -526,6 +537,8 @@
  ! unit convert from (mm/h) to (m/s)
  qp = qp / 3600.d0 / 1000.d0
  
@@ -39,23 +41,25 @@
  do j = 1, nx
   rain_j(j) = int( (xllcorner + (dble(j) - 0.5d0) * cellsize - xllcorner_rain) / cellsize_rain_x ) + 1
  enddo
-@@ -575,6 +586,25 @@
+@@ -575,6 +588,27 @@
   close(11)
  endif
  
 +call unst_rdat(ny_rain, qp, nx_rain, tt_max_rain, &
-+    ny, lasth, dt, &
++    ny, nx, lasth, dt, &
 +    xllcorner_rain, yllcorner_rain, cellsize_rain_x, cellsize_rain_y, &
 +    xllcorner, yllcorner, cellsize)
 +call open_unst_output_files
 +if(dsmesh==1) call dsmeshdat(lasth)
++if(d1riv==1) call d1rivdat(lasth, dt2, mesh, baseo, fd1riv_cntl)
 +if(plantFN==1) call plantFNdat
 +if(plantDa==1) call plantDadat
 +if(paddydam==1) call paddydat
 +if(drainarea==1) call draindat
 +if(morid==1) call moriddat
 +
-+call unst_initiald
++call unst_initiald(dir, nx, ny, width, len_riv, dx, dy)
++if(d1riv==1) call d1rivinitiald(dt2)
 +if(paddydam==1) call paddyinitiald
 +if(drainarea==1) call draininitiald
 +
@@ -65,7 +69,7 @@
  ! For TSAS Output (Initial Condition)
  call sub_slo_ij2idx( hs, hs_idx )
  call sub_riv_ij2idx( hr, hr_idx )
-@@ -593,6 +623,7 @@
+@@ -593,6 +627,7 @@
  out_dt = dble(maxt) / dble(outnum)
  out_dt = max(1.d0, out_dt)
  out_next = nint(out_dt)
@@ -73,7 +77,7 @@
  tt = 0
  
  do t = 1, maxt
-@@ -1193,6 +1224,17 @@
+@@ -1193,6 +1228,17 @@
    endif
   endif
  
@@ -91,7 +95,7 @@
   ! check water balance
   if(mod(t, 1).eq.0) then
    call storage_calc(hs, hr, hg, ss, sr, si, sg)
-@@ -1204,6 +1246,27 @@
+@@ -1204,6 +1250,39 @@
  
  enddo
  
@@ -114,7 +118,19 @@
 +if(paddydam==1) deallocate(orifice_num, min_dist, psmesh, dr_dist, dhp, phid)
 +if(paddydam==1) deallocate(paddy_q, pqh, drain2phidx)
 +if(drainarea==1) deallocate(inf_dr, drp, drr, drr_dist, dhj)
-+if(dsmesh==1) deallocate(ds_dt, ds_inf, ds2me, ds_upme, ds_wl)
++if(dsmesh==1) then
++    if(any(ds_inf==2)) deallocate(ds_wl)
++    if(dsmesh==1) deallocate(ds_dt, ds_inf, ds2me, ds_upme)
++endif
++if(d1riv==1) deallocate(riv_ndan, h_1d, ho_1d, vv_1d, q_1d, qo_1d, a_1d, r_1d, b_1d, rn_1d)
++if(d1riv==1) deallocate(h_1dmax, ntype_1d, kp_1d, dx_1d, depth_1d, rbed_1d, rzmax_1d)
++if(d1riv==1) deallocate(dan_record, n_tbl, h_table, a_table, r_table, b_table, rn_table)
++if(d1riv==1) deallocate(b_idx_1d, b_dt_1d, b_data_1d, up_h_1d, up_q_1d, b_upme_1d, b_dome_1d)
++if(d1riv==1) deallocate(subflow_input, subq_all, tributaryq_1d, pumpq_1d, sluiceq_1d)
++if(d1riv==1) deallocate(breakq_1d, breakq_l_1d, breakq_r_1d)
++if(d1riv==1) deallocate(weirq_1d, weirq_l_1d, weirq_r_1d, weir_dx_1d)
++if(d1riv==1) deallocate(w_alpha_1d, w_angle_1d, bktype_1d)
++if(d1riv==1) deallocate(ncnct_1d2d, cnct_1d2d_idx, crown_1d, inland_1d)
 +
  !pause
  

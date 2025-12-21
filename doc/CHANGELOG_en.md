@@ -1,63 +1,64 @@
 # Changelog
 
-## [1.1.0] - comming soon
-
-### Add
-- Add connection method between RRI and UNST2D
-  - Add depth connection
-- Add example materials
-- Added build batch file (make.bat) for Windows
-
-### Fixed
-- Modified the UNST2D call method (to handle rainfall events from downstream of connected meshes).
-  - Fixed an issue where UNST2D was not called if there was no flow rate in the RRI-UNST2D connection mesh.
-
-### Change
-- Changing the format of cntl.dat
-  - Deleted the ocpy (occupancy rate) and beta (pass rate) columns
-  - Added RRI-UNST2D connection type specification (whether or not feedback is provided to RRI)
-  - Changed the output destination of lkyokaiq.dat to be specified in cntl.dat
-- Changed the occupancy rate specification to be written next to inf.dat
-- Integrates passability specification with line fill options
-- manual update(ver.1.1.0)
-
-## [1.0.5] - 2025-10-17
-### Add
-- Adding a change log file (CHANGELOG_ja.md / CHANGELOG_en.md)
-- (Common to UNST_***.f90) Added output of cumulative flow used for negative water depth correction.
-- (Common to UNST_***.f90) Added output of cumulative discharged flow.
+## [1.0.5] - 2025-12-25
+### Added
+- Added change log files (CHANGELOG_ja.md / CHANGELOG_en.md)
+- Added new features
+- (Common to UNST_***.f90) Added output of cumulative discharge used for negative depth correction
+- (Common to UNST_***.f90) Added output of cumulative discharged discharge
+- (Common to UNST_***.f90) Added RRI->UNST2D connection method (center of gravity depth/flux connection)
+- (Common to UNST_***.f90) Added RRI<-UNST2D depth feedback selection function
+- (Common to UNST_***.f90) Support for 1D river channel (fractional step) model
+- (UNST_Read2.f90) Added 1D river channel (fractional step) model
+- (UNST_Riv.f90) Added a 1D river channel (fractional step) model.
+- (UNST_Mod2.f90) Added a 1D river channel (fractional step) model.
+- Added a build batch file (make.bat) for Windows.
+- Added a patch application Python script (apply_patch.py) for Windows.
 
 ### Fixed
-- (UNST_Sub.f90) Fixed a bug in water balance processing when paddy dam is enabled (paddydam==1).
-- (UNST_Elements.f90) Fixed a bug in the average water depth processing transferred from UNST2D to RRI
-- 
+- (UNST_Sub.f90) Fixed a water balance processing issue when paddy dams were enabled (paddydam==1).
+- (UNST_Sub.f90) Fixed a boundary inflow processing issue.
+- (UNST_Cnct.f90) Fixed a problem with the average water depth processing passed from UNST2D to RRI.
 
-### Change
+### Changes
+- Renamed cntl.dat to UNST2D_cntl.dat (to differentiate it from the cntl.dat for the UNST2D standalone model).
+- Changed the format of UNST2D_cntl.dat.
+- Deleted the beta line.
+- Deleted the ocpy line.
+- Changed the output destination of kyokaiq.dat to specify it.
 - Source code changes
-  - (UNST_***.f90) Enhanced comments
-  - (UNST_***.f90) str(storage) function removal
-  - (UNST_***.f90) Changed various variable names for discharge
-  - (UNST_Main.f90) Change the goto loop to a do while loop
-  - (UNST_Main.f90) Adding use according to modularization
-  - (UNST_Main.f90) Explicitly rri2unst by interface
-  - (UNST_Read.f90) Modularize the whole thing (unst_read)
-  - (UNST_Read.f90) Change unit number to newunit
-  - (UNST_Read.f90) Changed to output UNST2D input parameters on the terminal.
-  - (UNST_Read.f90) Separate reading of wastewater treatment (dsmesh) into subroutine dsmeshdat
-  - (UNST_Sub.f90) goto reduction
-  - (UNST_Sub.f90) Modularize the whole thing (unst_cal_sub)
-  - (UNST_Sub.f90) Delete subroutine sumqa
-  - (UNST_Sub.f90) Turn entry suisin into subroutine (subroutine suisin)
-  - (UNST_Write.f90) Modularize the whole thing (unst_wrfile, unst_prewfile)
-  - (UNST_Write.f90) Moved the contents of subroutine sumqa in UNST_Sub.f90 to subroutine dispwrite
-  - (UNST_Write.f90) Turn entry paddywrite into subroutine (subroutine paddywrite)
-  - (UNST_Write.f90) Dynamically change part of the output format
-  - (UNST_Mod.f90) Organizing variables
-  - (modify_rri.patch/RRI_UNST.f90) Adding use according to modularization
-
-- Exclude UNST_Break.f90 from the build target of Makefile
-- Manual update(ver.1.0.5)
+- (Common to UNST_***.f90) Enhanced comments
+- (Common to UNST_***.f90) Removed str (storage) function
+- (Common to UNST_***.f90) Changed various wastewater treatment variable names
+- (UNST_Main.f90) Changed goto loops to do while loops
+- (UNST_Main.f90) Added use to accommodate modularization
+- (UNST_Main.f90) Explicitly used rri2unst via interface
+- (UNST_Read.f90) Modularized the entire system (module unst_read)
+- (UNST_Read.f90) Changed the unit number to newunit
+- (UNST_Read.f90) Changed UNST2D input specifications to be output to the terminal
+- (UNST_Read.f90) Added the ability to specify the occupancy rate lambda in inf.dat
+- (UNST_Read.f90) Supports rainfall areas outside the UNST2D domain
+- (UNST_Read.f90) Supports RRI areas outside the UNST2D domain
+- (UNST_Read.f90) Separates drainage treatment (dsmesh) reading into subroutine dsmesh
+- (UNST_Read.f90) Allows specification of the pass rate rbeta in morido.dat
+- (UNST_Initial.f90) Separates initial condition reflection processing (improves readability)
+- (UNST_Sub.f90) Reduces gotos
+- (UNST_Sub.f90) Modularizes the entire module (module unst_cal_sub)
+- (UNST_Sub.f90) Removes subroutine sumqa
+- (UNST_Sub.f90) Subroutines entry suisin (subroutine suisin)
+- (UNST_Write.f90) Modified the entire file (unst_wrfile, unst_prewfile)
+- (UNST_Write.f90) Moved the contents of the subroutine sumqa from UNST_Sub.f90 to the subroutine dispwrite
+- (UNST_Write.f90) Subroutine entry paddywrite (subroutine paddywrite)
+- (UNST_Write.f90) Dynamically changed some output formats
+- (UNST_Mod.f90) Added and removed variables based on various additional features
+- (UNST_Mod.f90) Reorganized variables
+- (modify_rri.patch/RRI_UNST.f90) Added "use" statements based on modularization
+- (modify_rri.patch/RRI_UNST.f90) Added arguments based on various changes
+- (modify_rri.patch/RRI_UNST.f90) Added dsmesh loading processing (call dsmesh)
+- (modify_rri.patch/RRI_UNST.f90) Added 1D river channel processing.
+- Excluded UNST_Break.f90 from the Makefile build target.
+- Updated the manual (ver. 1.0.5).
 
 ## [1.0.0] - 2025-07-07
 ### Publish
-- RRI-UNST2D released on github
+- RRI-UNST2D released on GitHub.

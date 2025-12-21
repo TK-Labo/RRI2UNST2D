@@ -62,11 +62,11 @@ subroutine flux
     real(8) u11, v11, u13, v13, sqx, ram !Continuous
     real(8) plant_force                 ! add plant force
     integer li, k, me1, me2
-    real(8) blink, h1, h2, uvmn, vol1, vol2
+    real(8) b, h1, h2, uvmn, vol1, vol2
 
     !$omp parallel do default(shared) &
     !$omp private(hhe, hhw, hhep, hhwp, hhan, sgn, hh1, u11, v11, u13, v13, sqx, ram, li, k, me1, me2) &
-    !$omp private(plant_force, blink, h1, h2, uvmn, vol1, vol2)
+    !$omp private(plant_force, b, h1, h2, uvmn, vol1, vol2)
   do li = 1, link
     if(limesh(li, 2) == 0) cycle
     if((inf(limesh(li, 2)) == 0) .or. (inf(limesh(li, 1)) == 0) .or. &
@@ -86,7 +86,7 @@ subroutine flux
     ! line embankment added by CTI r.nishizawa
     if (morid == 1) then
     if(infl(li) == 1) then
-        blink= sqrt((dnox(lnode1(li)) - dnox(lnode2(li))) **2 + (dnox(lnode1(li)) - dnox(lnode2(li)) ** 2))
+        b = blink(li)
         h1 = max(hhe, hhw) - max(baseo(limesh(li, 1)), baseo(limesh(li,2)), zbbk(li))
         h2 = min(hhe, hhw) - max(baseo(limesh(li, 1)), baseo(limesh(li,2)), zbbk(li))
 
@@ -102,7 +102,7 @@ subroutine flux
                 vn(li) = -sgn * 0.91d0 * h2 * sqrt(2.0d0*gg*(h1-h2))*uy(li)
             endif
 
-            uvmn = sqrt(um(li)**2 + vn(li)**2) * blink * dt2
+            uvmn = sqrt(um(li)**2 + vn(li)**2) * b * dt2
             vol1 = unsth(limesh(li,1)) * smesh(limesh(li,1)) * (1.0d0 - lambda(limesh(li,1)))
             vol2 = unsth(limesh(li,2)) * smesh(limesh(li,2)) * (1.0d0 - lambda(limesh(li,2)))
 
@@ -315,7 +315,6 @@ subroutine flux
     um(li) = ((1.0d0 - dt2*ram*(1.0d0 - fita))*umo(li) - u11 - u13)/(1.0d0 + dt2*ram*fita)
     vn(li) = ((1.0d0 - dt2*ram*(1.0d0 - fita))*vno(li) - v11 - v13)/(1.0d0 + dt2*ram*fita)
     lhan(li) = 0
-    cycle
     enddo
     !$omp end parallel do
 
@@ -333,21 +332,22 @@ end subroutine flux
 !   tmp_wl: 水位(dsmesh,dsinf=2)/water level(dsmesh,dsinf=2)
 !   unst_tmp_error: 水深計算における数値誤差/numerical errors in water depth calculations
 !   unst_tmp_ds: 排水処理における排水量/wastewater volume in wastewater treatment
-!   rr(mesh): meshの降水量(mm)/mesh rainfall(mm)
+!   rr: meshの降水量(mm)/mesh rainfall(mm)
 !   q(mesh): meshの流量/mesh q
 !-------------------------------------------------------------------------------------
 subroutine suisin
     implicit none
-    integer me, li, k, ii, it, ilt, nn, ct, nt
-    real(8) f, sumf    !Equation of Continuity
-    real(8), allocatable :: rr(:), q(:), gamma(:)
+    integer me, k, ii, it, ilt, nn, ct, nt
+    real(8) f, sumf, rr    !Equation of Continuity
+    real(8), allocatable :: q(:)
     real(8) tmp_wl
     real(8) unst_tmp_error, unst_tmp_ds
 
-    allocate(rr(mesh), q(mesh), gamma(link))
+    allocate(q(mesh))
 
     if (paddydam==1) paddy_q = 0.0d0
     unst_tmp_error = 0.0d0
+    unst_tmp_ds = 0.0d0
 
     it = int(unsttime/dtrain) + 1
 
@@ -355,14 +355,9 @@ subroutine suisin
     if(drainarea==1) vol_dr = 0.0d0
     ct = int(unsttime / (dt2+0.000001d0))
     nt = int((unsttime + (dt2+0.000001d0)) / (dt2+0.000001d0))
-    !$omp parallel do default(shared),private(li)
-    do li = 1, link
-        gamma(li) = 1.0d0
-    enddo
-    !$omp end parallel do
 
     !$omp parallel do default(shared) &
-    !$omp private(f,sumf,k,me,ilt,nn,tmp_wl) &
+    !$omp private(f,sumf,k,me,ilt,nn,tmp_wl,rr) &
     !$omp reduction(+:unst_tmp_error, unst_tmp_ds)
     do me = 1, mesh
         if(inf(me) == 0) cycle
@@ -388,7 +383,7 @@ subroutine suisin
             endif
         endif
         ! added by k.yamamura
-        rr(me) = rain(it, urain_i(me), urain_j(me))
+        rr = rain(it, urain_i(me), urain_j(me))
 
         ! inflow by flux
         sumf = 0.0d0
@@ -400,8 +395,7 @@ subroutine suisin
         enddo
 
         ! calculate depth
-        q(me) = dt2*(-sumf/(1.0d0 - lambda(me)) + rr(me)*rnof(me)*smesh(me))
-        !q(me) = q(me) - min(q(me),0.0d0)
+        q(me) = dt2*(-sumf/(1.0d0 - lambda(me)) + rr*rnof(me)*smesh(me) + riv_eq(me))
 
         ! Update Depth
         unsth(me) = ho(me) + q(me)/smesh(me)
@@ -471,8 +465,8 @@ subroutine suisin
     enddo
     !$omp end parallel do
 
-    unst_error_v = unst_tmp_error  ! v.1.0.5
-    unst_dis_v = unst_tmp_ds  ! v.1.0.5
+    unst_error_v = unst_error_v + unst_tmp_error  ! v.1.0.5
+    unst_dis_v = unst_dis_v + unst_tmp_ds  ! v.1.0.5
 
     ! calculate paddy field dam outflow
     if (paddydam==1) call paddyflow
@@ -481,7 +475,7 @@ subroutine suisin
     ! calculate sewerage and fields outflow
     if (ct /= nt .and. drainarea==1)  call drainflow
 
-    deallocate(rr, q, gamma)
+    deallocate(q)
 
 end subroutine suisin
 
@@ -586,30 +580,95 @@ subroutine replace
 end subroutine replace
 
 !--------------------------------------
-! Calculate inflow on the boundaries
+! Calculate inflow on the boundaries     ! fixed v.1.0.5
 !--------------------------------------
 subroutine lkyokai
     implicit none
     real(8) yqin, xqin, rqin
+    real(8) tmp_vin, sep_rqin
     integer j, ii
+    integer meid
 
     ii = int(unsttime/dtq) + 1
-    !$omp parallel do default(shared),private(j, yqin, xqin, rqin)
-    do j = 1, iqnum
-        yqin = qinv(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qinv(j, ii + 1) - qinv(j, ii))
-        xqin = qinu(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qinu(j, ii + 1) - qinu(j, ii))
-        rqin = qin(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qin(j, ii + 1) - qin(j, ii))
+    if(qin_type==0) then
+        !$omp parallel do default(shared),private(j, yqin, xqin, rqin, meid)
+        do j = 1, iqnum
+            meid = limesh(inl(j),1)  ! mesh id
+            yqin = qinv(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qinv(j, ii + 1) - qinv(j, ii))
+            xqin = qinu(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qinu(j, ii + 1) - qinu(j, ii))
+            rqin = qin(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qin(j, ii + 1) - qin(j, ii))
+            if(lkyokai_dir(j) > 0) then
+                if(sep_qin(meid)>1) rqin = rqin / dble(sep_qin(meid))
+            else
+                rqin = 0.0d0
+            endif   
 
-        if(lkyokai_dx(j) - lkyokai_dy(j) >= 0) then
-            yqin = yqin - rqin
-        else
-            xqin = xqin - rqin
-        endif
+            select case(abs(lkyokai_dir(j)))
+                case(1)  ! from left side
+                    um(inl(j)) = (xqin + rqin)/lkyokai_dy(j)
+                case(2)  ! from down side
+                    vn(inl(j)) = (-yqin + rqin)/(-lkyokai_dx(j))
+                case(3)  ! from right side
+                    um(inl(j)) = (xqin - rqin)/(-lkyokai_dy(j))
+                case(4)  ! from upper side
+                    vn(inl(j)) = (-yqin - rqin)/lkyokai_dx(j)
+                case default
+                    ! no qin
+            end select
+        enddo
+        !$omp end parallel do
 
-        if(lkyokai_dx(j) > 0) vn(inl(j)) = yqin/lkyokai_dx(j)
-        if(lkyokai_dy(j) > 0) um(inl(j)) = xqin/lkyokai_dy(j)
-    enddo
-    !$omp end parallel do
+    elseif(qin_type==1) then
+        !$omp parallel do default(shared),private(j, yqin, xqin, rqin, meid, tmp_vin, sep_rqin)
+        do j = 1, iqnum
+            meid = inl(j)  ! mesh id
+            yqin = qinv(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qinv(j, ii + 1) - qinv(j, ii))
+            xqin = qinu(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qinu(j, ii + 1) - qinu(j, ii))
+            rqin = qin(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qin(j, ii + 1) - qin(j, ii))
+            tmp_vin = max((vin(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(vin(j, ii + 1) - vin(j, ii))), 0.0d0)
+            select case(abs(lkyokai_dir(j)))
+                case(1)  ! from left side
+                    umm(meid) = (xqin + rqin)/rri_dy
+                    vnm(meid) = -yqin/rri_dx
+                    unsth(meid) = tmp_vin/smesh(meid)
+                case(2)  ! from left/upper side
+                    sep_rqin = rqin/2.0d0
+                    umm(meid) = (xqin + sep_rqin)/rri_dy
+                    vnm(meid) = (-yqin + sep_rqin)/rri_dx
+                    unsth(meid) = tmp_vin/smesh(meid)
+                case(4)  ! from upper side
+                    umm(meid) = xqin/rri_dy
+                    vnm(meid) = (-yqin - rqin)/rri_dx
+                    unsth(meid) = tmp_vin/smesh(meid)
+                case(8)  ! from right/upper side
+                    sep_rqin = rqin/2.0d0
+                    umm(meid) = (xqin - sep_rqin)/rri_dy
+                    vnm(meid) = (-yqin - sep_rqin)/rri_dx
+                    unsth(meid) = tmp_vin/smesh(meid)
+                case(16)  ! from right side
+                    umm(meid) = (xqin - rqin)/rri_dy
+                    vnm(meid) = -yqin/rri_dx
+                    unsth(meid) = tmp_vin/smesh(meid)
+                case(32)  ! from right/down side
+                    sep_rqin = rqin/2.0d0
+                    umm(meid) = (xqin - sep_rqin)/rri_dy
+                    vnm(meid) = (-yqin + sep_rqin)/rri_dx
+                    unsth(meid) = tmp_vin/smesh(meid)
+                case(64)  ! from down side
+                    umm(meid) = xqin/rri_dy
+                    vnm(meid) = (-yqin + rqin)/rri_dx
+                    unsth(meid) = tmp_vin/smesh(meid)
+                case(128)  ! from left/down side
+                    sep_rqin = rqin/2.0d0
+                    umm(meid) = (xqin + sep_rqin)/rri_dy
+                    vnm(meid) = (-yqin + sep_rqin)/rri_dx
+                    unsth(meid) = tmp_vin/smesh(meid)
+                case default
+                    ! no qin
+            end select
+        enddo
+        !$omp end parallel do
+    endif
 
 end subroutine lkyokai
 

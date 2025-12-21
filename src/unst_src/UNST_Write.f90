@@ -7,8 +7,11 @@
 !=======================================
 module unst_write_procedures
     use unst_globals_mod
+    use d1riv_globals_mod
     contains
-    ! 配列全体書き込み用サブルーチン
+    !-----------------------
+    ! Write 2D nomal output
+    !-----------------------
     subroutine write_array_data(unit_num, data, fmt_data)
         implicit none
         integer, intent(in) :: unit_num
@@ -20,6 +23,9 @@ module unst_write_procedures
         write(unit_num, fmt_data) (data(me), me = 1, mesh)  ! meshもグローバル変数
     end subroutine
 
+    !-----------------------
+    ! Write paddy output(1)
+    !-----------------------
     subroutine write_paddyarray_data(unit_num, data, fmt_data)
         implicit none
         integer, intent(in) :: unit_num
@@ -31,7 +37,9 @@ module unst_write_procedures
         write(unit_num, fmt_data) (data(i), i = 1, paddy)  ! meshもグローバル変数
     end subroutine
 
-    ! paddy書き込み用サブルーチン
+    !-----------------------
+    ! Write paddy output(2)
+    !-----------------------
     subroutine write_paddy_data(unit_num)
         implicit none
         integer, intent(in) :: unit_num
@@ -45,6 +53,33 @@ module unst_write_procedures
         enddo
     1040 format(' time=', f8.0, '(s)')
     1041 format(i8, f10.5, i8)
+    end subroutine
+
+    !-----------------------
+    ! Write 1D River output
+    !-----------------------
+    subroutine write_multi_data(unit_num,dnum,d1,d2,d3,d4,d5,d6,d7)
+        implicit none
+        integer, intent(in) :: unit_num, dnum
+        real(8), intent(in) :: d1(dnum), d2(dnum), d3(dnum), d4(dnum), d5(dnum), &
+                                d6(dnum), d7(dnum)
+        integer :: i
+        
+        write(unit_num, 2111) unsttime
+        do i = 1, dnum
+            !write(unit_num, 2112) i, hs(i), qs(i), qys(i)
+            ! d1: kp
+            ! d2: river bed
+            ! d3: water level
+            ! d4: q
+            ! d5: velocity
+            ! d6: subq
+            ! d7: area
+            write(unit_num, 2112) i, d1(i), d3(i), d3(i)-d2(i), -d4(i), -d5(i), d6(i), d7(i)
+        enddo
+    2111 format(f12.1, '  time(sec)')
+    2112 format(i5, f10.3,10f10.5)
+    !2112 format(i4, 10f14.8)
     end subroutine
 
     !RRI_UNST専用
@@ -99,6 +134,12 @@ module unst_write_procedures
             open(newunit = fpaddyh_unit, file = fpaddyh, action = 'write')
             open(newunit = fpaddyq_unit, file = fpaddyq, action = 'write')
         endif
+
+        if(d1riv==1) then
+            open(newunit = fd1out_unit, file = fd1out, action = 'write')
+            open(newunit = fd1mx_unit, file = fd1mx, action = 'write')
+        endif
+
     end subroutine
 
     !-------------------
@@ -123,6 +164,12 @@ module unst_write_procedures
             close(fpaddyh_unit)
             close(fpaddyq_unit)
         endif
+
+        if(d1riv==1) then
+            close(fd1out_unit)
+            close(fd1mx_unit)
+        endif
+
     end subroutine
 end module unst_write_procedures
 
@@ -192,6 +239,8 @@ contains
 
         !$omp end sections
         !$omp end parallel
+        if(d1riv==1) call write_multi_data(fd1out_unit, ndan, kp_1d, rbed_1d, &
+                                            h_1d, q_1d, vv_1d, subq_all, a_1d)
     end subroutine diskwrite
 
     !----------------------------
@@ -240,6 +289,9 @@ contains
         call write_array_data(fvvmx_unit, vvmmax, fmt1)
         !$omp end sections
         !$omp end parallel
+
+        if(d1riv==1) call write_multi_data(fd1mx_unit, ndan, kp_1d, rbed_1d, &
+                                            h_1dmax, q_1d, vv_1d, subq_all, a_1d)
     end subroutine wrhmax
 
 end module unst_wrfile
@@ -249,6 +301,7 @@ end module unst_wrfile
 !====================================
 module unst_prewrfile
     use unst_globals_mod
+    use d1riv_globals_mod
     use unst_write_procedures
     implicit none
 
@@ -271,6 +324,7 @@ contains
     subroutine prediskwrite(time)
         implicit none
         real(8), intent(in) :: time
+        real(8) tmp(mesh)
         character(len=20) :: fmt1, fmt2, fmt3
 
         fmt1 = '(10f15.3)'
@@ -289,7 +343,8 @@ contains
         call prewrite_array_data(fvvm_unit, vvm, time, fmt1)
 
         !$omp section
-        call prewrite_array_data(fstorage_unit, ((unsth*smesh) - qr_sum), time, fmt2)
+        tmp = (unsth*smesh) - qr_sum
+        call prewrite_array_data(fstorage_unit, tmp, time, fmt2)
 
         !$omp section
         call prewrite_array_data(fq_unit, qr_sum, time, fmt1)

@@ -11,6 +11,7 @@ real(8), parameter :: pi = 3.14d0   ! pi
 real(8), parameter :: gg = 9.8d0    ! gravitational acceleration
 real(8), parameter :: th = 1.0d-3   ! Limit depth of movement
 real(8), parameter :: fita = 0.5d0  !
+real(8), parameter :: plant_cd = 1.2d0  ! flow resistance caused by vegetation
 
 ! =============
 !  time & step 
@@ -33,7 +34,7 @@ real(8), allocatable :: xmesh(:), ymesh(:)  ! centroid coords
 real(8), allocatable :: rtuv_x(:,:), rtuv_y(:,:)  ! interpolarate conf
 integer, allocatable :: inf(:)  ! landuse type id
 real(8), allocatable :: baseo(:), mn(:), lambda(:)
-real(8), allocatable :: rnof(:)  ! rainfall correction factor(No select value v1.0.5)
+real(8), allocatable :: rnof(:)  ! rainfall correction factor(No select value v.1.0.5)
     ! - - -
 real(8), allocatable :: unsth(:), ho(:), hmax(:)   ! depth
 real(8), allocatable :: umm(:), uum(:), uummax(:)  ! flux & speed
@@ -44,6 +45,7 @@ integer, allocatable :: limesh(:,:), linode(:,:)  ! components(mesh & link)
 real(8), allocatable :: scv(:)  !
 real(8), allocatable :: rthl(:,:), ux(:), uy(:)  ! interpolarate conf
 real(8), allocatable :: dl(:), rnx(:), rbeta(:), umbeta(:), vnbeta(:)
+real(8), allocatable :: blink(:)  ! length  v.1.0.5
     ! - - -
 real(8), allocatable :: hl(:)  ! depth
 real(8), allocatable :: um(:), umo(:), uu(:)  ! flux & speed
@@ -57,12 +59,17 @@ real(8), allocatable :: dnox(:), dnoy(:)
 ! =====
 ! -- num of data --
 integer iqnum, iqin
+! -- qin type --
+integer qin_type  ! qin type v.1.0.5
 ! -- qin param -- 
-integer, allocatable :: inl(:)  ! link id
+integer, allocatable :: inl(:)  ! link id or mesh id
+integer, allocatable :: lkyokai_dir(:)
 real(8), allocatable :: lkyokai_dx(:), lkyokai_dy(:)  ! link length
 real(8), allocatable :: qin(:,:)  ! river qin(from RRI)
 ! -- only RRI2UNST2D --
+real(8) rri_dx, rri_dy
 real(8), allocatable :: qinu(:,:), qinv(:,:)  ! slope qin(from RRI)
+real(8), allocatable :: sep_qin(:), vin_coef(:), vin(:,:)   ! v.1.0.5
 
 ! ======
 !  rain
@@ -131,8 +138,7 @@ real(8), allocatable :: vol_dr(:), vol(:)                       !下水道・圃
 !  Line Embankment
 ! =================
 integer mmorid, morid
-integer, allocatable :: nmorili(:), infl(:)
-integer, allocatable :: lnode1(:), lnode2(:), neib1(:), neib2(:)
+integer, allocatable :: infl(:)
 real(8), allocatable :: zbbk(:)
 
 ! ===========
@@ -156,18 +162,18 @@ character(len=50) :: &
     fdhp, fpaddyh, fpaddyq, &
     fh, fhmx, fuum, fvvm, &
     fuumx, fvvmx, fstorage, fq, &
-    ftracer, fvminus, fkyokaiq, fcdat
+    fvminus, fkyokaiq
 ! -- file path (use from RRI) --
 character(len=50) :: &
     fdsmesh, fplantF, fplantN, fplantD, fplanta, &
     fpaddy, fpqout, fpaddy_param, &
-    finf_dr, fdrain, fmorid
+    finf_dr, fdrain, fmorid, fd1riv_cntl
 ! -- unit --
 integer :: &
     fdhp_unit, fpaddyh_unit, fpaddyq_unit, &
     fh_unit, fhmx_unit, fuum_unit, fvvm_unit, &
     fuumx_unit, fvvmx_unit, fstorage_unit, fq_unit, &
-    ftracer_unit, fvminus_unit, fkyokaiq_unit, fcdat_unit
+    fvminus_unit, fkyokaiq_unit
 
 ! ===================
 !  RRI_UNST original
@@ -175,10 +181,17 @@ integer :: &
 ! -- step (use from RRI) --
 integer calldt
 ! -- matching (use UNST2D) --
+integer cnct_mode
 integer, allocatable :: rsetsu_i(:), rsetsu_j(:)
 
 ! ======================
 !  1d-riv (development)
 ! ======================
+! -- switch --
+integer d1riv
+! -- num of data --
+
+! -- param & condition --
+real(8), allocatable :: riv_eq(:)
 
 end module unst_globals_mod

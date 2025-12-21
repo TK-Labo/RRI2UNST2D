@@ -20,6 +20,9 @@
 subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     use unst_globals_mod
     use unst_cal_sub
+    use d1riv_globals_mod
+    use unst_1d_main
+    use unst_cnct_1d2d
     use unst_wrfile
     implicit none
     interface
@@ -33,7 +36,7 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     integer, intent(in) :: domain(ny, nx), riv(ny, nx)
     real(8), intent(in) :: time
     real(8), intent(inout) :: hs(ny,nx), hr(ny,nx)
-    integer me, li, k
+    integer me, li, k, i
 
     ! write message - start UNST2D
     write(*,*) 'UNST2D timestep ===  ',int(time-timmax), '  >>>>>  ', int(time)
@@ -66,6 +69,12 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     enddo
     !$omp end parallel do
 
+    if(d1riv==1) then
+        call calc_2d_to_1d_inflow
+        call calc_1d_to_2d_outflow
+        call d1riv_main(unsttime)
+    endif
+
     ! update time(1)
     unsttime = unsttime + unstdt
     mstep = mstep + 1
@@ -90,6 +99,16 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     ! update variable（new >>> old）
     call replace
 
+    ! reset subflow
+    if(d1riv==1) then
+        riv_eq = 0.0d0
+        !$omp parallel do default(shared),private(i)
+        do i = 1, ndan
+            h_1dmax(i) = max(h_1dmax(i), h_1d(i))
+        enddo
+        !$omp end parallel do
+    endif
+
     ! update time(2)
     unsttime = unsttime + unstdt
     mstep = mstep + 1
@@ -105,6 +124,6 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     ! UNST to RRI
-    call unst2rri(ny, nx, domain, riv, hs, hr)
+    if(cnct_mode==1) call unst2rri(ny, nx, domain, riv, hs, hr)
 
 end subroutine UNST2D

@@ -2,11 +2,15 @@
 ! Coded by K.Kawaike and TK Labo
 ! Released on July 7th 2025
 
-subroutine unst_initiald
+subroutine unst_initiald(dir, nx, ny, width, len_riv, dx, dy)
     use unst_globals_mod
     implicit none
+    integer, intent(in) :: nx, ny, dir(ny, nx)
+    real(8), intent(in) :: dx, dy, width(ny, nx), len_riv(ny, nx)
     integer me, li, k, k2, j
+    integer meid, ii, jj
     real(8) plant_lambda_link, mesh_dx, mesh_dy
+    real(8) max_baseo
 
     !-----------------------
     ! Initialize time param
@@ -17,88 +21,194 @@ subroutine unst_initiald
     !---------------------
     ! Initialize variable
     !---------------------
+    ! -- 01 mesh data --
+    umm = 0.0d0
+    vnm = 0.0d0
+    riv_eq = 0.0d0  ! v.1.0.5
     unst_error_v = 0.0d0  ! v1.0.5
     if(dsmesh==1) unst_dis_v = 0.0d0  ! v1.0.5
 
-    ! coefficient of roughness by inf
+    ! shape param
+    !$omp parallel do default(shared),private(me, k, k2)
+    do k = 1, ko(me)
+        k2 = mod(k, ko(me)) + 1
+        node_dx(me, k) = dnox(menode(me, k2)) - dnox(menode(me, k))
+        node_dy(me, k) = dnoy(menode(me, k2)) - dnoy(menode(me, k))
+    enddo
+    !$omp end parallel do
+
+    ! infomation
     !$omp parallel do default(shared),private(me, k, k2)
     do me = 1, mesh
         unsth(me) = 0.0d0
-
         if (dsmesh==1) then
             if (ds_inf(me)==2) unsth(me) = ds_wl(me,1)
         endif
         ho(me) = unsth(me)
         hmax(me) = unsth(me)
-        qr_sum(me) = 0.0d0
+        qr_sum(me) = unsth(me) * smesh(me)  ! fix  v.1.0.5
         rnof(me) = 1.00d0
+    enddo
+    !$omp end parallel do
 
-        if(plantDa==1) then
+    ! option
+    if(plantDa==1) then
+        !$omp parallel do default(shared),private(me)
+        do me = 1, mesh
             if (plant_a_array(me) /= 0.0d0 .and. plant_D_array(me) /= 0.0d0) then
                 plant_lambda(me) = plant_a_array(me)*plant_D_array(me)
             else
                 plant_lambda(me) = 0.0d0
             endif
-        endif
-
-        do k = 1, ko(me)
-            k2 = mod(k, ko(me)) + 1
-            node_dx(me, k) = dnox(menode(me, k2)) - dnox(menode(me, k))
-            node_dy(me, k) = dnoy(menode(me, k2)) - dnoy(menode(me, k))
         enddo
+        !$omp end parallel do
+    endif
+    ! ---
 
+    ! -- 02 link data --
+    um  = 0.0d0
+    umo = 0.0d0
+    vn  = 0.0d0
+    vno = 0.0d0
+    lhan = 0
+    lhano = 0
+
+    ! shape param
+    !$omp parallel do default(shared),private(li, mesh_dx, mesh_dy)
+    do li = 1, link
+        dl(li) = 0.0d0
+        if(limesh(li,2) /= 0) then
+            mesh_dx = xmesh(limesh(li, 2)) - xmesh(limesh(li, 1))
+            mesh_dy = ymesh(limesh(li, 2)) - ymesh(limesh(li, 1))
+            dl(li) = sqrt(mesh_dx**2 + mesh_dy**2)
+            blink(li) = sqrt((dnox(linode(li, 1)) - dnox(linode(li, 2))) **2 &
+                             + (dnox(linode(li, 1)) - dnox(linode(li, 2)) ** 2))
+        endif
     enddo
     !$omp end parallel do
 
-    !$omp parallel do default(shared),private(li, plant_lambda_link)
+    ! infomation
+    !$omp parallel do default(shared),private(li)
     do li = 1, link
-        um(li)  = 0.0d0
-        umo(li) = 0.0d0
-        vn(li)  = 0.0d0
-        vno(li) = 0.0d0
-!     ---------------------------------- 補間水深
         if(limesh(li, 2) /= 0) then
         hl(li) = unsth(limesh(li, 1))*rthl(li, 1) + unsth(limesh(li, 2))*rthl(li, 2)
         else
         hl(li) = unsth(limesh(li, 1))
         endif
-        lhan(li) = 0
-        lhano(li) = lhan(li)
-
-        dl(li) = 0.0d0
         rnx(li) = 0.0d0
-        if(limesh(li,2) /= 0) then
-            mesh_dx = xmesh(limesh(li, 2)) - xmesh(limesh(li, 1))
-            mesh_dy = ymesh(limesh(li, 2)) - ymesh(limesh(li, 1))
-            dl(li) = sqrt(mesh_dx**2 + mesh_dy**2)
-            rnx(li) = 0.5d0*(mn(limesh(li, 1)) + mn(limesh(li, 2)))
-        endif
+        if(limesh(li,2) /= 0) rnx(li) = 0.5d0*(mn(limesh(li, 1)) + mn(limesh(li, 2)))
+    enddo
+    !$omp end parallel do
 
-        if(plantDa==1) then
+    ! option : plantDa
+    if(plantDa==1) then
+        !$omp parallel do default(shared),private(li, plant_lambda_link)
+        do li = 1, link
             if(limesh(li,2)/=0) then
                 plant_lambda_link = 0.5d0*(plant_lambda(limesh(li, 1))+plant_lambda(limesh(li, 2)))
             else
                 plant_lambda_link = plant_lambda(limesh(li, 1))
             endif
             dk_val(li) = 0.0d0
-            ! 抗力係数CD = 1.2d0
-            if(plant_lambda_link>0.0d0) dk_val(li) = 1.0d0/sqrt(plant_lambda_link*1.2d0/(2.0d0*gg))
-        endif
-    enddo
-    !$omp end parallel do
+            if(plant_lambda_link>0.0d0) dk_val(li) = 1.0d0/sqrt(plant_lambda_link*plant_cd/(2.0d0*gg))
+        enddo
+        !$omp end parallel do
+    endif
+    ! option : morido
+    if(mmorid==1) then
+        !$omp parallel do default(shared),private(li,max_baseo)
+        do li = 1, link
+            if(infl(li)==1) then
+                max_baseo = max(baseo(limesh(li,1)), baseo(limesh(li,2)))
+                if(zbbk(li) <= max_baseo) then
+                    infl(li) = 0
+                    write(*,*) ' UNST2D - WARNING : invalid Embankment height linkid  >>> linkid', li
+                endif
+            endif
+        enddo
+        !$omp end parallel do
+    endif
+    ! ---
 
-    ! 上流端のdx,dy計算
+    ! -- 03 qin data --
     lkyokai_dx = 0.0d0
     lkyokai_dy = 0.0d0
-    !$omp parallel do default(shared),private(j)
+    lkyokai_dir = 0
+    if(qin_type==0) then
+    !$omp parallel do default(shared),private(j, k)
     do j = 1, iqnum
-        lkyokai_dx(j) = dnox(linode(inl(j), 1)) - dnox(linode(inl(j), 2))
-        lkyokai_dy(j) = dnoy(linode(inl(j), 1)) - dnoy(linode(inl(j), 2))
+            lkyokai_dx(j) = dnox(linode(inl(j), 1)) - dnox(linode(inl(j), 2))
+            lkyokai_dy(j) = dnoy(linode(inl(j), 1)) - dnoy(linode(inl(j), 2))
+            ! v.1.0.5
+            if(abs(lkyokai_dx(j)) > abs(lkyokai_dy(j))) then
+                if(lkyokai_dx(j) < 0) lkyokai_dir(j) = 2  ! from down side
+                if(lkyokai_dx(j) > 0) lkyokai_dir(j) = 4  ! from upper side
+            else
+                if(lkyokai_dy(j) < 0) lkyokai_dir(j) = 3  ! from right side
+                if(lkyokai_dy(j) > 0) lkyokai_dir(j) = 1  ! from left side
+            endif
+            if(lkyokai_dir(j)==0) write(*,*) ' UNST2D - WARNING : No length qin  >>> linkid', inl(j)
     enddo
     !$omp end parallel do
+    endif
 
-    ! 境界参照用
-    umm(0) = 0.0d0
-    vnm(0) = 0.0d0
+    sep_qin = 0
+    if(qin_type==0) then
+        do j = 1, iqnum
+            meid = limesh(inl(j),1)  ! mesh id
+            select case(dir(rsetsu_i(meid), rsetsu_j(meid)))
+                case(1,16)  ! from left/right side (flow dir → or ←)
+                    sep_qin(meid) = 1
+                    if((lkyokai_dir(j)==1) .or. (lkyokai_dir(j)==3)) then
+                        cycle
+                    else
+                        lkyokai_dir(j) = - lkyokai_dir(j)
+                    endif
+                case(4,64)  ! from upper/down side (flow dir ↓ or ↑)
+                    sep_qin(meid) = 1
+                    if((lkyokai_dir(j)==2) .or. (lkyokai_dir(j)==4)) then
+                        cycle
+                    else
+                        lkyokai_dir(j) = - lkyokai_dir(j)
+                    endif
+                case(2)  ! from upper/left side (flow dir ↓ or →)
+                    if((lkyokai_dir(j)==1) .or. (lkyokai_dir(j)==4)) then
+                        sep_qin(meid) = sep_qin(meid) + 1
+                    else
+                        lkyokai_dir(j) = - lkyokai_dir(j)
+                    endif
+                case(8)  ! from upper/right side (flow dir ↓ or ←)
+                    if((lkyokai_dir(j)==3) .or. (lkyokai_dir(j)==4)) then
+                        sep_qin(meid) = sep_qin(meid) + 1
+                    else
+                        lkyokai_dir(j) = - lkyokai_dir(j)
+                    endif
+                case(32)  ! from down/right side (flow dir ↑ or ←)
+                    if((lkyokai_dir(j)==2) .or. (lkyokai_dir(j)==3)) then
+                        sep_qin(meid) = sep_qin(meid) + 1
+                    else
+                        lkyokai_dir(j) = - lkyokai_dir(j)
+                    endif
+                case(128)  ! from down/left side (flow dir ↑ or →)
+                    if((lkyokai_dir(j)==1) .or. (lkyokai_dir(j)==2)) then
+                        sep_qin(meid) = sep_qin(meid) + 1
+                    else
+                        lkyokai_dir(j) = - lkyokai_dir(j)
+                    endif
+                case default  ! no direction(no qin)
+                    lkyokai_dir(j) = 0  ! >0 河道流入あり, <0 河道流入なし, =0 流入なし
+            end select                       
+        enddo
+    elseif(qin_type==1) then
+        rri_dx = dx
+        rri_dy = dy
+        do j = 1, iqnum
+            meid = inl(j)  ! mesh id
+            ii = rsetsu_i(meid)
+            jj = rsetsu_j(meid)
+            lkyokai_dir(j) = dir(ii, jj)
+            vin_coef(j) = width(ii,jj)*len_riv(ii,jj)
+        enddo
+    endif
 
 end subroutine unst_initiald

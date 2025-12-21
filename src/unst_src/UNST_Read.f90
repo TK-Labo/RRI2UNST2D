@@ -9,16 +9,16 @@ module unst_read
 contains
 
 !===========
-! Main Read
+! Main Read  ! update v.1.0.5
 !===========
 subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
-     ny, lasth, dt, &
+     ny, nx, lasth, dt, &
      xllcorner_rain, yllcorner_rain, cellsize_rain_x, cellsize_rain_y,&
      xllcorner, yllcorner, cellsize)
     implicit none
 
     integer, intent(in) :: tt_max_rain, nx_rain, ny_rain
-    integer, intent(in) :: ny, lasth, dt
+    integer, intent(in) :: ny, nx, lasth, dt  ! add nx
     real(8), intent(in) :: temprain(0:tt_max_rain, ny_rain, nx_rain)
     real(8), intent(in) :: xllcorner_rain, yllcorner_rain, &
          cellsize_rain_x, cellsize_rain_y, &
@@ -46,11 +46,11 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     real(8) dkout, dpout
 
     ! config file
-    fcntl = 'cntl.dat'
+    fcntl = 'UNST2D_cntl.dat'
 
-    !-----------------------
-    ! Step1 : Read cntl.dat
-    !-----------------------
+    !------------------------------
+    ! Step1 : Read UNST2D_cntl.dat
+    !------------------------------
     ! parameter set
     open(newunit=fcntl_unit, file=fcntl, action = 'read')
     read(fcntl_unit, 1002) unstdt
@@ -62,14 +62,13 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     read(fcntl_unit, *)
     write(*,*)
     write(*,*) '== UNST Parameters =='
-    !if(cnct_mode==1) write(*,*) ' - Connect Mode : Coupled'
-    !if(cnct_mode==0) write(*,*) ' - Connect Mode : One Direction'
+    if(cnct_mode==1) write(*,*) ' - Connect Mode : Coupled'
+    if(cnct_mode==0) write(*,*) ' - Connect Mode : One Direction'
     write(*,*) '* Time & Step Parameters *'
     write(*,'(a18,f10.2)') ' - unst dt      :', unstdt
     write(*,'(a18,i10)') ' - unst call    :', calldt
     write(*,'(a18,f10.2, a3)') ' - disk out     :', dkout, '(s)'
     write(*,'(a18,f10.2, a3)') ' - display out  :', dpout,'(s)'
-    write(*,'(a18,f10.2)') ' - default beta :', unstbeta
     write(*,*)
 
     ! required filename set
@@ -104,6 +103,16 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     if(dsmesh==1) then
         write(*,*) '+ Discharge(dsmesh) Active'
         write(*,'(a16, a)') ' - dsmesh     :', fdsmesh
+    endif
+
+    ! option : 1D river
+    read(fcntl_unit, 1003) d1riv
+    read(fcntl_unit, 1009) fd1riv_cntl
+    read(fcntl_unit, *)
+    read(fcntl_unit, *)
+    if(d1riv==1) then
+        write(*,*) '+ 1D River(d1riv) Active'
+        write(*,'(a16, a)') ' - d1riv_cntl :', fd1riv_cntl
     endif
 
     ! option : vegetation resistance ; considering lodging, ex)reed
@@ -188,6 +197,7 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     read(fcntl_unit, 1009) fvvmx
     read(fcntl_unit, 1009) fstorage
     read(fcntl_unit, 1009) fq
+    read(fcntl_unit, 1009) fkyokaiq  ! v.1.0.5
     write(*,*) '* UNST Output *'
     write(*,'(a27, a)') ' - h(depth)              :', fh
     write(*,'(a27, a)') ' - hmx(max h)            :', fhmx
@@ -196,8 +206,7 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     write(*,'(a27, a)') ' - uumx(max uum)         :', fuumx
     write(*,'(a27, a)') ' - vvmx(max vvm)         :', fvvmx
     write(*,'(a27, a)') ' - q                     :', fq
-    write(*,'(a27, a)') ' - kyokaiq(qin from RRI) :out/unst/lkyokaiq.dat'
-    !write(*,'(a27, a)') ' - kyokaiq(qin from RRI) :', fkyokaiq
+    write(*,'(a27, a)') ' - kyokaiq(qin from RRI) :', fkyokaiq
     write(*,'(a27, a)') ' - storage               :', fstorage
 
 1001 format(7x, i11)
@@ -227,11 +236,6 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     open(newunit = fqin_unit, file = fqin, action = 'read')
     open(newunit = fmesh2ij_unit, file = fmesh2ij, action = 'read')
     open(newunit = frn_unit, file = frn, action = 'read')
-
-    ! output file set
-    ftracer = 'out/unst/tracer.dat'
-    fkyokaiq = 'out/unst/kyokaiq.dat'
-    fcdat = 'out/unst/c.dat'
 
     write(*,*) '* grid data *'
     ! -- 01 grid : node (vertex coordinates) --
@@ -263,28 +267,19 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     ! ---
 
     ! -- 01 grid : mesh --
-    sep_rtuv = 0
     read(fmesh_unit, 1009, iostat = ios) line
-    line = adjustl(trim(line))
-    read_count = 0
-    do j = 1, len_trim(line)
-        if (line(j:j) == ' ' .and. line(j+1:j+1) /= ' ') then
-            read_count = read_count + 1
-        endif
-    enddo
-    if (read_count == 0) then
+    line = trim(adjustl(line))
+    read(line, *, iostat = ios) mesh, sep_rtuv
+    if(ios/=0) then
         read(line, *, iostat = ios) mesh
-    elseif(read_count == 1) then
-        read(line, *, iostat = ios) mesh, sep_rtuv
-    else
-        write(*,*) 'ERROR-01 : mesh'
+        sep_rtuv = 0
+        if(ios/=0) stop 'UNST2D - ERROR-1001 : mesh could not be loaded.'
     endif
     write(*,*) ' - mesh : ', mesh, 'grids'
     write(*,*) '   > interpolation type:', sep_rtuv
 
     allocate(ko(mesh), menode(mesh, 6), melink(mesh, 6), smesh(mesh), xmesh(mesh), ymesh(mesh))
     allocate(rtuv_x(mesh, 6), rtuv_y(mesh, 6))
-    allocate(qr_sum(mesh))
     do me = 1, mesh
         read(fmesh_unit, 1232) ko(me), (menode(me, k), k = 1, ko(me))
         read(fmesh_unit, 1233) (melink(me, k), k = 1, ko(me))
@@ -306,10 +301,16 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     close(fmesh_unit)
     ! ---
 
-    ! -- 02 attribute(mesh) : inf (landuse infromation) --
-    allocate(inf(mesh))
+    ! -- 02 attribute(mesh) : inf (landuse infromation) --  ! update v.1.0.5
+    allocate(inf(mesh), lambda(mesh))
     do me = 1, mesh
-        read(finf_unit, *) inf(me)
+        read(finf_unit, 1009, iostat = ios) line
+        if(ios/=0) exit
+        read(line, *, iostat = ios) inf(me), lambda(me)
+        if(ios/=0) then
+            read(line, *, iostat = ios) inf(me)
+            lambda(me) = 0.0d0
+        endif
     enddo
     close(finf_unit)
     ! ---
@@ -322,43 +323,9 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     close(fbs_unit)
     ! ---
 
-    ! -- 02 attribute(mesh) : occupancy rate --
-    allocate(lambda(mesh))
-    !$omp parallel do default(shared),private(me)
-    do me = 1, mesh
-        lambda(me) = 0.0d0
-    enddo
-    !$omp end parallel do
-    ! ---
-
-    ! -- 02 attribute(mesh) : passage rate --
-    allocate(rbeta(link))
-    !$omp parallel do default(shared),private(li)
-    do li = 1, link
-        rbeta(li) = unstbeta
-    enddo
-    !$omp end parallel do
-    ! ---
-
-    ! -- 03 attribute(link) : qin (link) --
-    iqin = lasth * 3600 / dt
-    print *, iqin
-    read(fqin_unit, *) iqnum
-    allocate(inl(iqnum), qin(iqnum, iqin+1), qinu(iqnum, iqin+1), qinv(iqnum, iqin+1) )
-    allocate(lkyokai_dx(iqnum), lkyokai_dy(iqnum))
-
-    qin = 0.0d0
-    qinu = 0.0d0
-    qinv = 0.0d0
-
-    do i = 1, iqnum
-        read(fqin_unit, *) inl(i)
-    enddo
-    close(fqin_unit)
-    ! ---
-
-    ! -- 02 attribute(mesh) : rain --
-    allocate(rain(0:tt_max_rain, ny_rain, nx_rain))
+    ! -- 02 attribute(mesh) : rain --  ! update v.1.0.5
+    allocate(rain(0:tt_max_rain, 0:ny_rain, 0:nx_rain))
+    rain = 0.0d0
     do tt = 0, tt_max_rain
         do i = 1, ny_rain
             do j = 1, nx_rain
@@ -367,26 +334,42 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
         enddo
     enddo
 
-    allocate(urain_j(mesh), urain_i(mesh))
+    ! unst mesh_ij(mesh2ij.dat) set
     allocate(rri_x(mesh), rri_y(mesh))
     do me = 1, mesh
-     read(fmesh2ij_unit, *) rri_x(me), rri_y(me)
+        read(fmesh2ij_unit, *) rri_x(me), rri_y(me)
     end do
+    close(fmesh2ij_unit)
 
+    ! unst_rain(matching rain_ij and mesh_ij) set
+    allocate(urain_j(mesh), urain_i(mesh))
     do me = 1, mesh
         urain_j(me) = int( (rri_x(me) - xllcorner_rain) / cellsize_rain_x) + 1
         urain_i(me) = ny_rain - int( (rri_y(me) - yllcorner_rain) / cellsize_rain_y)
-        if(urain_i(me) <=0 .or. urain_j(me) <= 0) write(*,*) 'ERROR-02 : rain or mesh2ij'
+        if(urain_i(me) <= 0 .or. urain_j(me) <= 0 &
+           .or. urain_i(me) > nx_rain .or. urain_j(me) > ny_rain) then
+            urain_i(me) = 0
+            urain_j(me) = 0
+        endif
     enddo
-    close(fmesh2ij_unit)
+    if(any(urain_i/=0) .or. any(urain_j/=0)) then
+        write(*,*) ' UNST2D - WARNIG : No overlap between UNST2D and rainfall area found.'
+    endif
 
-    ! rsetsuzoku(matching rain_ij and mesh_ij) set
+    ! rri_setsuzoku(matching rri_ij and mesh_ij) set
     allocate( rsetsu_i(mesh), rsetsu_j(mesh) )
     do me = 1, mesh
         rsetsu_j(me) = int( (rri_x(me) - xllcorner) / cellsize) + 1
         rsetsu_i(me) = ny - int( (rri_y(me) - yllcorner) / cellsize)
-        if(rsetsu_i(me) <=0 .or. rsetsu_j(me) <= 0) write(*,*) 'ERROR-03 : qin'
+        if(rsetsu_i(me) <= 0 .or. rsetsu_j(me) <= 0 &
+           .or. rsetsu_i(me) > nx .or. rsetsu_j(me) > ny) then
+            rsetsu_i(me) = 0
+            rsetsu_j(me) = 0
+        endif
     enddo
+    if(any(rsetsu_i/=0) .or. any(rsetsu_j/=0)) then
+        write(*,*) ' UNST2D - WARNIG : No overlap between UNST2D and RRI found.'
+    endif
     ! ---
 
     ! -- 02 attribute : roughness --
@@ -450,14 +433,54 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     deallocate( infmn, temp_mn, temp_soildepth, temp_gammaa, temp_ksv, temp_faif )
     ! ---
 
+    ! -- 03 attribute(link) : rbeta(passage rate) --  ! update v.1.0.5
+    allocate(rbeta(link))
+    rbeta = 0.0d0
+    ! ---
+
+    ! -- 03 attribute(link) : qin --  ! update v.1.0.5
+    iqin = lasth * 3600 / dt
+    read(fqin_unit, *, iostat = ios) line
+    line = trim(adjustl(line))
+    read(line, *, iostat = ios) iqnum, qin_type
+    if(ios/=0) then
+        read(line, *, iostat = ios) iqnum
+        qin_type = 0
+    endif
+    if(qin_type==0) then
+        write(*,*) ' - qin  : ', iqnum, 'links'
+        allocate(inl(iqnum), qin(iqnum, iqin+1), qinu(iqnum, iqin+1), qinv(iqnum, iqin+1) )
+        allocate(lkyokai_dx(iqnum), lkyokai_dy(iqnum), lkyokai_dir(iqnum), sep_qin(mesh))
+    elseif(qin_type==1) then
+        write(*,*) ' - qin  : ', iqnum, 'meshs'
+        allocate(inl(iqnum), qin(iqnum, iqin+1), qinu(iqnum, iqin+1), qinv(iqnum, iqin+1) )
+        allocate(vin_coef(iqnum), vin(iqnum, iqin+1))
+    else
+        stop 'UNST2D - ERROR-1002 : qin could not be loaded.'
+    endif
+
+    qin = 0.0d0
+    qinu = 0.0d0
+    qinv = 0.0d0
+
+    do i = 1, iqnum
+        read(fqin_unit, *) inl(i)
+    enddo
+    close(fqin_unit)
+    ! ---
+
     ! allocate variables
     allocate(unsth(mesh), ho(mesh), hl(link), hmax(mesh), uummax(mesh), vvmmax(mesh))
-    allocate(um(link), umo(link), umm(0:mesh), uu(link), vn(link), vno(link), vnm(0:mesh), vv(link))
-    allocate(rnof(mesh), umbeta(link), vnbeta(link))
+    allocate(umm(0:mesh), vnm(0:mesh))
     allocate(uum(mesh), vvm(mesh))
+    allocate(node_dx(mesh,6), node_dy(mesh,6))
+    allocate(rnof(mesh), qr_sum(mesh), riv_eq(mesh))
+    allocate(um(link), umo(link), uu(link), vn(link), vno(link), vv(link))
+    allocate(umbeta(link), vnbeta(link))
     allocate(lhan(link), lhano(link))
     allocate(rnx(link), dl(link))
-    allocate(node_dx(mesh,6), node_dy(mesh,6))
+    allocate(blink(link))
+    
 
 end subroutine unst_rdat
 
@@ -628,18 +651,22 @@ end subroutine draindat
 ! Read Line Embankment
 !======================
 !--------------------------------------------------------------------------------
-! UNST2D線盛土処理読み込みサブルーチン/UNST2D line embankment process read subroutine
+! UNST2D線盛土・通過率処理読み込みサブルーチン
+!       /UNST2D line embankment process read subroutine
 ! 変数/Variable:
 ! > グローバル変数/global variable
 !   mmorid: 盛り土対象linkの数/num of target link
 !   nmorili: 対象link/target link
 !   infl(link): 線盛土link判定フラグ/Line embankment link judgment flag
 !   zbbk: 盛土(地盤)高/Line bank ground level
+!   rbeta(link): 通過率(0.0~1.0)/passage rate
 !--------------------------------------------------------------------------------
 subroutine moriddat
     implicit none
-    integer mmo, li
-    integer fmorid_unit
+    integer mmo
+    integer fmorid_unit, ios
+    character(len=50) line
+    integer, allocatable :: nmorili(:)  ! change  v.1.0.5
 
     open(newunit = fmorid_unit, file = fmorid, action = 'read')
     read(fmorid_unit, *) mmorid
@@ -648,13 +675,21 @@ subroutine moriddat
     allocate( nmorili(mmorid), infl(link) )
     allocate( zbbk(link) )
 
+    infl = 0  ! initialize
+
     do mmo = 1, mmorid
-        read(fmorid_unit, *) nmorili(mmo), zbbk(nmorili(mmo))
-        do li = 1, link
-            if(li == nmorili(mmo)) infl(li)=1
-        enddo
+        read(fmorid_unit, '(A)', iostat = ios) line
+        if(ios/=0) exit
+            read(line, *, iostat = ios) nmorili(mmo), zbbk(nmorili(mmo)), rbeta(nmorili(mmo))
+            if(ios/=0) then
+                read(line, *, iostat = ios) nmorili(mmo), zbbk(nmorili(mmo))
+                rbeta(nmorili(mmo)) = 0.0d0
+            endif
+        if(zbbk(nmorili(mmo)) > 0.0d0) infl(nmorili(mmo)) = 1
     enddo
     close(fmorid_unit)
+
+    deallocate(nmorili)
 
 end subroutine moriddat
 
@@ -734,16 +769,18 @@ subroutine dsmeshdat(lasth)
             read(line, *) dsme(i), dstype(i)
         elseif (read_count == 2) then
             read(line, *) dsme(i), dstype(i), dswl_num(i)
+        else
+            stop 'UNST2D - ERROR-1002 : dsmesh could not be loaded.'
         endif
 
         ds_inf(dsme(i)) = dstype(i)
         idswlmax = max(dswl_num(i), idswlmax, 0)
-        ! cal time step
+        ! count dstype2 & cal wl time step
         if(dstype(i)==2) then
             ids2mesh = ids2mesh + 1
             ds2me(ids2mesh) = dsme(i)
             if (dswl_num(i)<=0) then
-                write(*,*) 'ERROR : meshid' , dsme(i) , 'is illegal value, No discharge.'
+                write(*,*) ' UNST2D - WARNIG : meshid' , dsme(i) , 'is illegal value, No discharge.'
                 dstype(i) = 0
                 ds_inf(dsme(i)) = 0
                 ids2mesh = ids2mesh - 1
@@ -763,8 +800,6 @@ subroutine dsmeshdat(lasth)
         ! downstream mesh rtuv set
         allocate(sum_rtuv_x(mesh), sum_rtuv_y(mesh))
     endif
-
-    !if (any(dstype == 3)) write(*,*) 'UNIFORM FLOW: target meshid - upper meshid'
 
     do i = 1, dsmenum
         ! dstype1: free outflow mesh set
@@ -811,7 +846,7 @@ subroutine dsmeshdat(lasth)
                     endif
                 enddo
             else
-                write(*,*) ' ERROR : meshid', dsme(i), 'is not square, No discharge.'
+                write(*,*) ' UNST2D - WARINIG : meshid', dsme(i), 'is not square, No discharge.'
                 ds_inf(dsme(i)) = 0
             endif
         endif

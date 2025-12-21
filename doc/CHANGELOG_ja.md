@@ -1,37 +1,31 @@
 # Changelog
 
-## [1.1.0] - comming soon
-### Add
-- RRIとUNST2Dの接続方法の追加
-  - 水深接続の追加
-- テストデータの公開
-- Windows用ビルドバッチファイル(make.bat)の追加
-
-### Fixed
-- UNST2Dの呼び出しメソッドの修正(接続メッシュ下流からの降雨イベントに対応)
-  - RRI-UNST2D接続メッシュに流量がない場合UNST2Dが呼び出されない現象を修正
-
-### Change
-- cntl.datをUNST2D_cntl.datに名称変更(UNST2D単体モデルのcntl.datとの差別化)
-- cntl.datのフォーマットの変更
-  - ocpy(占有率), beta(通過率)の削除
-  - RRI-UNST2Dの接続タイプ指定(RRIへのフィードバックの有無)の追加
-  - lkyokaiq.datの出力先をcntl.datで指定するように変更
-- 現状未反映となっている占有率の指定をinf.datの横に記載するよう変更
-- 通過率の指定を線盛土オプションと統合
-- マニュアルの更新(ver.1.1.0)
-
-## [1.0.5] - 2025-10-17
+## [1.0.5] - 2025-12-25
 ### Add
 - 変更記録ファイル(CHANGELOG_ja.md / CHANGELOG_en.md)の追加
-- (UNST_***.f90共通) 負の水深補正に使用した累計流量の出力を追加
-- (UNST_***.f90共通) 排水された累計流量の出力を追加
+- 機能追加
+  - (UNST_***.f90共通) 負の水深補正に使用した累計流量の出力を追加
+  - (UNST_***.f90共通) 排水された累計流量の出力を追加
+  - (UNST_***.f90共通) RRI->UNST2Dの接続方法の追加(重心水深・フラックス接続)
+  - (UNST_***.f90共通) RRI<-UNST2Dの水深フィードバック有無の選択機能追加
+  - (UNST_***.f90共通) 一次元河道(フラクショナルステップ)モデルに対応
+  - (UNST_Read2.f90) 一次元河道(フラクショナルステップ)モデルの追加
+  - (UNST_Riv.f90) 一次元河道(フラクショナルステップ)モデルの追加
+  - (UNST_Mod2.f90) 一次元河道(フラクショナルステップ)モデルの追加
+- Windows用ビルドバッチファイル(make.bat)の追加
+- Windows用patch反映pythonスクリプト(apply_patch.py)の追加
 
 ### Fixed
 - (UNST_Sub.f90) 田んぼダム有効時(paddydam==1)の水収支処理の不具合を修正
-- (UNST_Elements.f90) UNST2DからRRIへ受け渡す平均水深処理の不具合を修正
+- (UNST_Sub.f90) 境界流入処理の不具合を修正
+- (UNST_Cnct.f90) UNST2DからRRIへ受け渡す平均水深処理の不具合を修正
 
 ### Change
+- cntl.datをUNST2D_cntl.datに名称変更(UNST2D単体モデルのcntl.datとの差別化)
+- UNST2D_cntl.datのフォーマットの変更
+  - beta行の削除
+  - ocpy行の削除
+  - kyokaiq.datの出力先を指定するよう変更
 - ソースコードの変更
   - (UNST_***.f90共通) コメントの充実化
   - (UNST_***.f90共通) str(貯留)機能の削除
@@ -42,7 +36,12 @@
   - (UNST_Read.f90) 全体をモジュール化(module unst_read)
   - (UNST_Read.f90) 装置番号をnewunitに変更
   - (UNST_Read.f90) UNST2Dのインプット諸元をターミナル上に出力するよう変更
-  - (UNST_Read.f90) 排水処理(dsmesh)の読み取りをsubroutine dsmesh.datに分離
+  - (UNST_Read.f90) inf.datで占有率lambdaの指定を可能に
+  - (UNST_Read.f90) UNST2D領域外の降雨エリアに対応
+  - (UNST_Read.f90) UNST2D領域外のRRIエリアに対応
+  - (UNST_Read.f90) 排水処理(dsmesh)の読み取りをsubroutine dsmeshに分離
+  - (UNST_Read.f90) morido.datで通過率rbetaの指定を可能に
+  - (UNST_Initial.f90) 初期条件反映処理の分割(可読性の向上)
   - (UNST_Sub.f90) gotoの削減
   - (UNST_Sub.f90) 全体ををモジュール化(module unst_cal_sub)
   - (UNST_Sub.f90) subroutine sumqaを削除
@@ -51,9 +50,12 @@
   - (UNST_Write.f90) UNST_Sub.f90のsubroutine sumqaの内容をsubroutine dispwriteに移植
   - (UNST_Write.f90) entry paddywriteをsubroutine化(subroutine paddywrite)
   - (UNST_Write.f90) 出力フォーマットの一部を動的に変更
+  - (UNST_Mod.f90) 各種追加機能に応じた変数の追加・削除
   - (UNST_Mod.f90) 変数の整理
   - (modify_rri.patch/RRI_UNST.f90) module化に応じたuseの追加
-
+  - (modify_rri.patch/RRI_UNST.f90) 各種変更に応じた引数の追加
+  - (modify_rri.patch/RRI_UNST.f90) dsmeshの読み込み処理の追加(call dsmesh)
+  - (modify_rri.patch/RRI_UNST.f90) 一次元河道関連の処理を追加
 - Makefileのビルド対象からUNST_Break.f90を除外
 - マニュアルの更新(ver.1.0.5)
 

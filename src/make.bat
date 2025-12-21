@@ -4,7 +4,7 @@ REM=============================================================================
 REM RRI-UNST連携モデル用make.bat (Windows)
 REM
 REM 使い方:
-REM   .\make.bat        : プログラムをコンパイルして実行ファイルを生成
+REM   .\make_win.bat        : プログラムをコンパイルして実行ファイルを生成
 REM
 REM 最終更新:
 REM==============================================================================
@@ -26,7 +26,6 @@ if /I "%COMPILER%"=="gfortran" (
     set FC=ifx
     set OPTIONS=/nologo /O2 /Qopenmp /Qiopenmp
     set MOD_FLAG=/module:
-    set OBJ_FLAG=/object:
     set OSUFFIX=.obj
 )
 
@@ -41,14 +40,14 @@ REM ビルド用ディレクトリ (中間ファイルの出力先)
 set BUILD_DIR=build
 
 REM モジュールが含まれるファイル名(拡張子なし) - コンパイル順序に注意
-set UNST_MODULE_FNAME=UNST_Mod UNST_Write UNST_Read UNST_Sub
+set UNST_MODULE_FNAME=UNST_Mod UNST_Mod2 UNST_Write UNST_Read UNST_Read2 UNST_Sub UNST_Riv
 set RRI_MODULE_FNAME=RRI_Mod RRI_Mod2 RRI_Mod_Dam RRI_Mod_Tecout
 
 REM メインプログラムが含まれるファイル名(拡張子なし)
 set MAIN_FNAME=RRI_UNST
 
 REM 除外対象ファイル名
-set EXCLUDE_FNAME=RRI_Break
+set EXCLUDE_FNAME=RRI_Break RRI
 
 REM 実行ファイル名
 set TARGET=RRI_UNST.exe
@@ -70,18 +69,12 @@ REM  STAGE-1 : UNSTモジュールのコンパイル
 REM -------------------------------------------
 echo STAGE-1 Compiling UNST Modules
 
-if /I "%COMPILER%"=="gfortran" (
-    set FFLAGS=%OPTIONS% -c %MOD_FLAG%"%MOD_DIR%"
-) else (
-    set FFLAGS=%OPTIONS% /c %MOD_FLAG%"%MOD_DIR%" %OBJ_FLAG%"%OBJ_DIR%\\"
-)
-
 for %%f in (%UNST_MODULE_FNAME%) do (
     echo [Compiling Module] %UNST_DIR%\%%f%FSUFFIX%
     if /I "%COMPILER%"=="gfortran" (
-        "%FC%" %FFLAGS% -o "%OBJ_DIR%\%%f%OSUFFIX%" "%UNST_DIR%\%%f%FSUFFIX%"
+        "%FC%" %OPTIONS% -c %MOD_FLAG%"%MOD_DIR%" -o "%OBJ_DIR%\%%f%OSUFFIX%" "%UNST_DIR%\%%f%FSUFFIX%"
     ) else (
-        "%FC%" %FFLAGS% "%UNST_DIR%\%%f%FSUFFIX%"
+        "%FC%" %OPTIONS% /c %MOD_FLAG%"%MOD_DIR%" /object:"%OBJ_DIR%\%%f%OSUFFIX%" "%UNST_DIR%\%%f%FSUFFIX%"
     )
     if errorlevel 1 (
         echo *** ERROR Compile Module: %UNST_DIR%\%%f%FSUFFIX% ***
@@ -106,9 +99,9 @@ for %%f in (%UNST_DIR%\*%FSUFFIX%) do (
     if "!skip!"=="false" (
         echo [Compiling] %%f
         if /I "%COMPILER%"=="gfortran" (
-            "%FC%" %FFLAGS% -I"%MOD_DIR%" -o "%OBJ_DIR%\!fname!%OSUFFIX%" "%%f"
+            "%FC%" %OPTIONS% -c %MOD_FLAG%"%MOD_DIR%" -I"%MOD_DIR%" -o "%OBJ_DIR%\!fname!%OSUFFIX%" "%%f"
         ) else (
-            "%FC%" %FFLAGS% /I"%MOD_DIR%" "%%f"
+            "%FC%" %OPTIONS% /c %MOD_FLAG%"%MOD_DIR%" /I"%MOD_DIR%" /object:"%OBJ_DIR%\!fname!%OSUFFIX%" "%%f"
         )
         if errorlevel 1 (
             echo *** ERROR Compile: %%f ***
@@ -125,9 +118,9 @@ echo STAGE-3 Compiling RRI Modules
 for %%f in (%RRI_MODULE_FNAME%) do (
     echo [Compiling Module] %RRI_DIR%\%%f%FSUFFIX%
     if /I "%COMPILER%"=="gfortran" (
-        "%FC%" %FFLAGS% -I"%MOD_DIR%" -o "%OBJ_DIR%\%%f%OSUFFIX%" "%RRI_DIR%\%%f%FSUFFIX%"
+        "%FC%" %OPTIONS% -c %MOD_FLAG%"%MOD_DIR%" -I"%MOD_DIR%" -o "%OBJ_DIR%\%%f%OSUFFIX%" "%RRI_DIR%\%%f%FSUFFIX%"
     ) else (
-        "%FC%" %FFLAGS% /I"%MOD_DIR%" "%RRI_DIR%\%%f%FSUFFIX%"
+        "%FC%" %OPTIONS% /c %MOD_FLAG%"%MOD_DIR%" /I"%MOD_DIR%" /object:"%OBJ_DIR%\%%f%OSUFFIX%" "%RRI_DIR%\%%f%FSUFFIX%"
     )
     if errorlevel 1 (
         echo *** ERROR Compile Module: %RRI_DIR%\%%f%FSUFFIX% ***
@@ -147,16 +140,19 @@ for %%f in (%RRI_DIR%\*%FSUFFIX%) do (
     REM モジュールファイルとメインプログラムはスキップ
     for %%m in (%RRI_MODULE_FNAME% %MAIN_FNAME%) do (
         if /I "!fname!"=="%%m" set skip=true
-        if /I "!fname!"=="%EXCLUDE_FNAME%" set skip=true
+    )
+
+    REM 除外リスト
+    for %%e in (%EXCLUDE_FNAME%) do (
+        if /I "!fname!"=="%%e" set skip=true
     )
     
     if "!skip!"=="false" (
         echo [Compiling] %%f
-        REM gfortran用とifx用で分岐
         if /I "%COMPILER%"=="gfortran" (
-            "%FC%" %FFLAGS% -I"%MOD_DIR%" -o "%OBJ_DIR%\!fname!%OSUFFIX%" "%%f"
+            "%FC%" %OPTIONS% -c %MOD_FLAG%"%MOD_DIR%" -I"%MOD_DIR%" -o "%OBJ_DIR%\!fname!%OSUFFIX%" "%%f"
         ) else (
-            "%FC%" %FFLAGS% /I"%MOD_DIR%" "%%f"
+            "%FC%" %OPTIONS% /c %MOD_FLAG%"%MOD_DIR%" /I"%MOD_DIR%" /object:"%OBJ_DIR%\!fname!%OSUFFIX%" "%%f"
         )
         if errorlevel 1 (
             echo *** ERROR Compile: %%f ***
@@ -172,9 +168,9 @@ echo STAGE-5 Compiling Main Program
 
 echo [Compiling Main] %RRI_DIR%\%MAIN_FNAME%%FSUFFIX%
 if /I "%COMPILER%"=="gfortran" (
-    "%FC%" %FFLAGS% -I"%MOD_DIR%" -o "%OBJ_DIR%\%MAIN_FNAME%%OSUFFIX%" "%RRI_DIR%\%MAIN_FNAME%%FSUFFIX%"
+    "%FC%" %OPTIONS% -c %MOD_FLAG%"%MOD_DIR%" -I"%MOD_DIR%" -o "%OBJ_DIR%\%MAIN_FNAME%%OSUFFIX%" "%RRI_DIR%\%MAIN_FNAME%%FSUFFIX%"
 ) else (
-    "%FC%" %FFLAGS% /I"%MOD_DIR%" "%RRI_DIR%\%MAIN_FNAME%%FSUFFIX%"
+    "%FC%" %OPTIONS% /c %MOD_FLAG%"%MOD_DIR%" /I"%MOD_DIR%" /object:"%OBJ_DIR%\%MAIN_FNAME%%OSUFFIX%" "%RRI_DIR%\%MAIN_FNAME%%FSUFFIX%"
 )
 if errorlevel 1 (
     echo *** ERROR Compile Main: %RRI_DIR%\%MAIN_FNAME%%FSUFFIX% ***
@@ -188,15 +184,15 @@ echo STAGE-6 Linking
 
 set OBJ_LIST=
 if /I "%COMPILER%"=="gfortran" (
-    for %%f in ("%OBJ_DIR%\*.o") do set OBJ_LIST=!OBJ_LIST! "%%f"
+    for %%f in (%OBJ_DIR%\*.o) do set OBJ_LIST=!OBJ_LIST! "%%f"
 ) else (
-    for %%f in ("%OBJ_DIR%\*.obj") do set OBJ_LIST=!OBJ_LIST! "%%f"
+    for %%f in (%OBJ_DIR%\*.obj) do set OBJ_LIST=!OBJ_LIST! "%%f"
 )
 
 if /I "%COMPILER%"=="gfortran" (
     "%FC%" %OPTIONS% !OBJ_LIST! -o "%BUILD_DIR%\%TARGET%"
 ) else (
-    "%FC%" !OBJ_LIST! /exe:"%BUILD_DIR%\%TARGET%"
+    "%FC%" %OPTIONS% !OBJ_LIST! /Fe:"%BUILD_DIR%\%TARGET%"
 )
 if errorlevel 1 (
     echo *** ERROR Link ***
