@@ -129,37 +129,14 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     !---------------
     ! -- read --
     tmp_ndan = 0
-    ud_idx_1d(1,1) = 1
     do i = 1, nriv
-        if(i/=1) ud_idx_1d(1,i-1) = tmp_ndan + 1
+        ud_idx_1d(1,i) = tmp_ndan + 1    ! downstream
         read(fjudan_unit, *, iostat=ios) riv_ndan(i)
         tmp_ndan = tmp_ndan + riv_ndan(i)
-        ud_idx_1d(2,i) = riv_ndan(i) + tmp_ndan
+        ud_idx_1d(2,i) = tmp_ndan  ! upstream
     enddo
-    read(fjudan_unit, '(A)', iostat=ios) line
-    do
-        ! read line
-        read(fjudan_unit, '(A)', iostat=ios) line
-        if(ios/=0) exit
-        read_count = 0
-        do i = 1, len_trim(line)
-            if (line(i:i) == ',') read_count = read_count + 1  ! count','
-        enddo
-        if(read_count==2) then
-            ud_idx_1d(1,read_count2) = ndan + 1  ! downstream
-            if(ndan>1) ud_idx_1d(2,read_count2) = ndan      ! upstream
-            riv_ndan(read_count2) = tmp_ndan
-            tmp_ndan = 0
-            read_count2 = read_count2 + 1
-            cycle
-        endif
-        tmp_ndan = tmp_ndan + 1
-        ndan = ndan + 1
-    enddo
-    if(nriv==1) ud_idx_1d(1,1) = 1
-    riv_ndan(read_count2) = tmp_ndan
-    ud_idx_1d(2,read_count2) = ndan      ! upstream
     close(fjudan_unit)
+    ndan = tmp_ndan
     write(*,*) 'num of cross section - ', ndan
 
     ! -- allocate --
@@ -354,14 +331,14 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
             if(nb_data>0) then
                 read(fbound_unit,*) (b_data_1d(i,n), i=1, nb_data)
             else
-                if(nb_data==-1) read(fbound_unit, *) b_upme_1d(n)
-                if(nb_data==0) read(fbound_unit, *) b_dome_1d(n)
                 nb_data = 1
                 b_dt_1d(n) = dble(lasth) * 3600
                 if(ntype_1d(b_idx_1d(n)) == -1) then
+                    read(fbound_unit, *) b_upme_1d(n)
                     b_data_1d(1,n) = 0.10d0
                 elseif(ntype_1d(b_idx_1d(n)) == 1) then
-                    b_data_1d(1,n) = rbed_1d(b_idx_1d(n)) + thd_1d
+                    read(fbound_unit, *) b_dome_1d(n)
+                    b_data_1d(1,n) = rbed_1d(b_idx_1d(n)) + thd_1d                    
                 endif
             endif
             b_data_1d(nb_data+1,n) = b_data_1d(nb_data,n)
