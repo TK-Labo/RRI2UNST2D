@@ -22,11 +22,12 @@ module unst_d1riv_read
 contains
 
 subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
+    implicit none
     real(8), intent(in) :: dt2
     integer, intent(in) :: lasth, mesh
     real(8), intent(in) :: baseo(mesh)
     character(len=50), intent(in) :: frivcntl
-    integer idummy, j, i, ios
+    integer idummy, j, i, ios, n, max_nb, nb_data, k, max_ncnct_1d2d
     integer oudan_format
     integer read_count, read_count2, tmp_ndan
     integer xznum
