@@ -7,7 +7,6 @@ https://github.com/user-attachments/assets/d922fac3-b09c-4861-9c57-251e41bb8a58
 In this project, we are developing a model to more accurately simulate runoff and flooding phenomena caused by rainfall by linking the Rainfall-Runoff-Inundation (RRI) model with the Unstructured grid 2D unsteady flow model (UNST2D).  
 
 降雨流出氾濫（RRI）モデルと非構造格子二次元不定流（UNST2D）モデルを結合し，連成計算が可能な解析法を提案しています．RRIモデルをベースに任意領域でUNST-2Dの分担範囲を選択し，RRIモデルで計算された流量フラックスをUNST-2Dモデルの外縁に境界条件として与え，UNST-2Dモデルで計算された水深を重複領域上にあるRRIモデルの各メッシュに水位として逐次返すことで，両モデルの計算結果を整合させながら連成計算を進めます．
-ver1.0.5より，RRIモデルで計算された水深および流量フラックスをUNST-2Dモデルの外縁メッシュ図心に与える水深境界条件も選択可能です．
 
 ## Citation
 このコードを利用した計算結果の公表・頒布に際しては、以下の論文を引用してください。  
@@ -83,6 +82,11 @@ patchコマンドが使用可能な場合 / patch command is available
 patch RRI.f90 < modify_rri.patch
 ```
 
+改行コードや空白のずれからエラーが出ることがある / Errors may occur due to misalignment of line break codes or spaces
+```bash
+patch -l RRI.f90 -o RRI_UNST.f90 < modify_rri.patch
+```
+
 patchコマンドが使用不能な場合(python環境が必要)  
 / Make command cannot be used(Python environment required)
 ```bash
@@ -147,7 +151,7 @@ This modification is for compiliation with gfortran.
 +call unst_rdat(ny_rain, qp, nx_rain, tt_max_rain, &
 +    ny, nx, lasth, dt, &
 +    xllcorner_rain, yllcorner_rain, cellsize_rain_x, cellsize_rain_y, &
-+    xllcorner, yllcorner, cellsize)
++    xllcorner, yllcorner, cellsize, dir)
 +call open_unst_output_files
 +if(dsmesh==1) call dsmeshdat(lasth)
 +if(d1riv==1) call d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
@@ -158,8 +162,9 @@ This modification is for compiliation with gfortran.
 +if(drainarea==1) call draindat
 +if(morid==1) call moriddat
 +
-+call unst_initiald(dir, nx, ny, width, len_riv, dx, dy)
++call unst_initiald(dir, nx, ny)
 +if(d1riv==1) call d1rivinitiald(dt2)
+
 +if(paddydam==1) call paddyinitiald
 +if(drainarea==1) call draininitiald
 +
@@ -219,7 +224,7 @@ This modification is for compiliation with gfortran.
 +deallocate(mn, rnof, lambda, rbeta)
 +deallocate(uum, vvm, lhan, lhano, qr_sum, rnx, dl)
 +if(plantFN==1) deallocate(plantF_array, plantN_array)
-+if(plantDa==1) deallocate(plant_D_array, plant_a_array, dk_val)
++if(plantDa==1) deallocate(dk_val)
 +if(paddydam==1) deallocate(paddyid, pqout_idx, pdrain, min_pmeshid, device)
 +if(paddydam==1) deallocate(orifice_num, min_dist, psmesh, dr_dist, dhp, phid)
 +if(paddydam==1) deallocate(paddy_q, pqh, drain2phidx)

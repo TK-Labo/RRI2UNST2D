@@ -14,7 +14,7 @@ contains
 subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
      ny, nx, lasth, dt, &
      xllcorner_rain, yllcorner_rain, cellsize_rain_x, cellsize_rain_y,&
-     xllcorner, yllcorner, cellsize)
+     xllcorner, yllcorner, cellsize, dir)
     implicit none
 
     integer, intent(in) :: tt_max_rain, nx_rain, ny_rain
@@ -23,6 +23,7 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     real(8), intent(in) :: xllcorner_rain, yllcorner_rain, &
          cellsize_rain_x, cellsize_rain_y, &
          xllcorner, yllcorner, cellsize
+    integer, intent(in) :: dir(ny, nx)
 
     integer no, me, li, k, i, j, tt, dummy, read_count, ios
 
@@ -41,7 +42,8 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     real(8), allocatable :: temp_mn(:)
     real(8), allocatable :: temp_soildepth(:), temp_gammaa(:), temp_ksv(:), temp_faif(:)
     integer n, numrn
-    integer sep_rtuv
+    integer sep_rtuv, outedge_num, tmp_iqnum, tmp_inl, except_judge
+    integer, allocatable :: unst_ij(:,:), qin_j(:,:), tmp_inlme(:)
 
     real(8) dkout, dpout
 
@@ -57,8 +59,7 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     read(fcntl_unit, 1001) calldt
     read(fcntl_unit, 1002) dkout
     read(fcntl_unit, 1002) dpout
-    read(fcntl_unit, 1002) ocpy
-    read(fcntl_unit, 1002) unstbeta
+    read(fcntl_unit, 1001) cnct_mode
     read(fcntl_unit, *)
     write(*,*)
     write(*,*) '== UNST Parameters =='
@@ -131,12 +132,16 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     read(fcntl_unit, 1003) plantDa
     read(fcntl_unit, 1009) fplantD
     read(fcntl_unit, 1009) fplanta
+    read(fcntl_unit, 1009) fplanthv
+    read(fcntl_unit, 1009) fplantcd
     read(fcntl_unit, *)
     read(fcntl_unit, *)
     if(plantDa==1) then
         write(*,*) '+ Vegetation Resistance(plantDa) Active'
         write(*,'(a16, a)') ' - plantD     :', fplantD
         write(*,'(a16, a)') ' - planta     :', fplanta
+        write(*,'(a16, a)') ' - planthv    :', fplanthv
+        write(*,'(a16, a)') ' - plantcd    :', fplantcd
     endif
 
     ! option : paddydam
@@ -244,7 +249,7 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     do no = 1, node
         read(fnode_unit, 1212) dnox(no), dnoy(no)
     enddo
-1212 format(8x, 2f10.2)
+1212 format(8x, 2f11.2)  ! format change v.1.0.5
     close(fnode_unit)
     write(*,*) ' - node : ', node, 'points'
     ! ---
@@ -324,7 +329,7 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     ! ---
 
     ! -- 02 attribute(mesh) : rain --  ! update v.1.0.5
-    allocate(rain(0:tt_max_rain, 0:ny_rain, 0:nx_rain))
+    allocate(rain(0:tt_max_rain, 0:ny_rain, 0:nx_rain)) 
     rain = 0.0d0
     do tt = 0, tt_max_rain
         do i = 1, ny_rain
@@ -347,12 +352,12 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
         urain_j(me) = int( (rri_x(me) - xllcorner_rain) / cellsize_rain_x) + 1
         urain_i(me) = ny_rain - int( (rri_y(me) - yllcorner_rain) / cellsize_rain_y)
         if(urain_i(me) <= 0 .or. urain_j(me) <= 0 &
-           .or. urain_i(me) > nx_rain .or. urain_j(me) > ny_rain) then
+           .or. urain_i(me) > ny_rain .or. urain_j(me) > nx_rain) then
             urain_i(me) = 0
             urain_j(me) = 0
         endif
     enddo
-    if(any(urain_i/=0) .or. any(urain_j/=0)) then
+    if(any(urain_i==0) .or. any(urain_j==0)) then
         write(*,*) ' UNST2D - WARNIG : No overlap between UNST2D and rainfall area found.'
     endif
 
@@ -362,12 +367,12 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
         rsetsu_j(me) = int( (rri_x(me) - xllcorner) / cellsize) + 1
         rsetsu_i(me) = ny - int( (rri_y(me) - yllcorner) / cellsize)
         if(rsetsu_i(me) <= 0 .or. rsetsu_j(me) <= 0 &
-           .or. rsetsu_i(me) > nx .or. rsetsu_j(me) > ny) then
+           .or. rsetsu_i(me) > ny .or. rsetsu_j(me) > nx) then
             rsetsu_i(me) = 0
             rsetsu_j(me) = 0
         endif
     enddo
-    if(any(rsetsu_i/=0) .or. any(rsetsu_j/=0)) then
+    if(any(rsetsu_i==0) .or. any(rsetsu_j==0)) then
         write(*,*) ' UNST2D - WARNIG : No overlap between UNST2D and RRI found.'
     endif
     ! ---
@@ -435,26 +440,109 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
 
     ! -- 03 attribute(link) : rbeta(passage rate) --  ! update v.1.0.5
     allocate(rbeta(link))
-    rbeta = 0.0d0
+    rbeta = 1.0d0
     ! ---
 
     ! -- 03 attribute(link) : qin --  ! update v.1.0.5
     iqin = lasth * 3600 / dt
-    read(fqin_unit, *, iostat = ios) line
+    read(fqin_unit, '(A)', iostat = ios) line
     line = trim(adjustl(line))
     read(line, *, iostat = ios) iqnum, qin_type
     if(ios/=0) then
         read(line, *, iostat = ios) iqnum
         qin_type = 0
+        if(ios/=0) stop 'UNST2D - ERROR-1002 : qin could not be loaded.'
     endif
     if(qin_type==0) then
         write(*,*) ' - qin  : ', iqnum, 'links'
         allocate(inl(iqnum), qin(iqnum, iqin+1), qinu(iqnum, iqin+1), qinv(iqnum, iqin+1) )
         allocate(lkyokai_dx(iqnum), lkyokai_dy(iqnum), lkyokai_dir(iqnum), sep_qin(mesh))
+        do i = 1, iqnum
+            read(fqin_unit, *) inl(i)
+        enddo
     elseif(qin_type==1) then
         write(*,*) ' - qin  : ', iqnum, 'meshs'
-        allocate(inl(iqnum), qin(iqnum, iqin+1), qinu(iqnum, iqin+1), qinv(iqnum, iqin+1) )
-        allocate(vin_coef(iqnum), vin(iqnum, iqin+1))
+        outedge_num = 0
+        do i = 1, iqnum
+            read(fqin_unit, *) tmp_inl
+            do k = 1, ko(tmp_inl)
+                if(limesh(melink(tmp_inl, k), 2)==0) outedge_num = outedge_num + 1
+            enddo
+        enddo
+        rewind(fqin_unit)
+        ! ij -> me
+        allocate(unst_ij(ny, nx))
+        unst_ij = 0
+        do me = 1, mesh
+            if(rsetsu_i(me)==0 .or. rsetsu_j(me)==0) cycle
+            unst_ij(rsetsu_i(me), rsetsu_j(me)) = me
+        enddo
+        allocate(inl(outedge_num), qin(outedge_num, iqin+1), qinu(outedge_num, iqin+1), qinv(outedge_num, iqin+1) )
+        allocate(lkyokai_dx(outedge_num), lkyokai_dy(outedge_num), lkyokai_dir(outedge_num), sep_qin(mesh))
+        allocate(qin_inf(mesh), qin_j(mesh,4), tmp_inlme(iqnum), rqin_coef(outedge_num))
+
+        iqnum = outedge_num
+
+        qin_j = 0
+        qin_inf = 0
+        read(fqin_unit, *) tmp_iqnum
+        outedge_num = 0
+        do i = 1, tmp_iqnum
+            read(fqin_unit, *) tmp_inlme(i)
+            except_judge = 1
+            do k = 1, ko(tmp_inlme(i))
+                if(limesh(melink(tmp_inlme(i), k), 2)==0) then
+                    outedge_num = outedge_num + 1
+                    inl(outedge_num) = melink(tmp_inlme(i), k)
+                    except_judge = 0
+                endif
+            enddo
+            if(except_judge==1) then
+                if(rsetsu_i(tmp_inlme(i))==0 .or. rsetsu_i(tmp_inlme(i))==0) cycle
+                do me = 1, mesh
+                    if(me==tmp_inlme(i)) cycle
+                    ! 左上
+                    if((rsetsu_i(tmp_inlme(i))-1==rsetsu_i(me)) .and. (rsetsu_j(tmp_inlme(i))-1==rsetsu_j(me))) then
+                        qin_j(i,1) = 1
+                    ! 左下
+                    elseif((rsetsu_i(tmp_inlme(i))+1==rsetsu_i(me)) .and. (rsetsu_j(tmp_inlme(i))-1==rsetsu_j(me))) then
+                        qin_j(i,2) = 1
+                    ! 右下
+                    elseif((rsetsu_i(tmp_inlme(i))+1==rsetsu_i(me)) .and. (rsetsu_j(tmp_inlme(i))+1==rsetsu_j(me))) then
+                        qin_j(i,3) = 1
+                    ! 右上
+                    elseif((rsetsu_i(tmp_inlme(i))-1==rsetsu_i(me)) .and. (rsetsu_j(tmp_inlme(i))+1==rsetsu_j(me))) then
+                        qin_j(i,4) = 1
+                    endif
+                enddo
+                if(rsetsu_i(tmp_inlme(i))/=1 .and. rsetsu_j(tmp_inlme(i))/=1) then
+                    if(qin_j(i,1)==0 .and. dir(rsetsu_i(tmp_inlme(i))-1, rsetsu_j(tmp_inlme(i))-1)==2) then
+                        qin_inf(unst_ij(rsetsu_i(tmp_inlme(i))-1, rsetsu_j(tmp_inlme(i)))) = 1
+                        qin_inf(unst_ij(rsetsu_i(tmp_inlme(i)), rsetsu_j(tmp_inlme(i))-1)) = 2
+                        cycle
+                    endif
+                endif
+                if(rsetsu_i(tmp_inlme(i))/=ny .and. rsetsu_j(tmp_inlme(i))/=1) then
+                    if(qin_j(i,2)==0 .and. dir(rsetsu_i(tmp_inlme(i))+1, rsetsu_j(tmp_inlme(i))-1)==128) then
+                        qin_inf(unst_ij(rsetsu_i(tmp_inlme(i)), rsetsu_j(tmp_inlme(i))-1)) = 3
+                        qin_inf(unst_ij(rsetsu_i(tmp_inlme(i))+1, rsetsu_j(tmp_inlme(i)))) = 4
+                    endif
+                endif
+                if(rsetsu_i(tmp_inlme(i))/=ny .and. rsetsu_j(tmp_inlme(i))/=nx) then
+                    if(qin_j(i,3)==0 .and. dir(rsetsu_j(tmp_inlme(i))+1, rsetsu_i(tmp_inlme(i))+1)==32) then
+                        qin_inf(unst_ij(rsetsu_i(tmp_inlme(i)), rsetsu_j(tmp_inlme(i))+1)) = 5
+                        qin_inf(unst_ij(rsetsu_i(tmp_inlme(i))+1, rsetsu_j(tmp_inlme(i)))) = 6
+                    endif
+                endif
+                if(rsetsu_i(tmp_inlme(i))/=1 .and. rsetsu_j(tmp_inlme(i))/=nx) then
+                    if(qin_j(i,4)==0 .and. dir(rsetsu_j(tmp_inlme(i))-1, rsetsu_i(tmp_inlme(i))+1)==8) then
+                        qin_inf(unst_ij(rsetsu_i(tmp_inlme(i)), rsetsu_j(tmp_inlme(i))+1)) = 7
+                        qin_inf(unst_ij(rsetsu_i(tmp_inlme(i))-1, rsetsu_j(tmp_inlme(i)))) = 8
+                    endif
+                endif
+            endif
+        enddo
+        deallocate(qin_j, unst_ij, tmp_inlme)
     else
         stop 'UNST2D - ERROR-1002 : qin could not be loaded.'
     endif
@@ -463,9 +551,6 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     qinu = 0.0d0
     qinv = 0.0d0
 
-    do i = 1, iqnum
-        read(fqin_unit, *) inl(i)
-    enddo
     close(fqin_unit)
     ! ---
 
@@ -486,7 +571,7 @@ end subroutine unst_rdat
 
 
 !==================================================
-! Read Vegetation Resistance ; considering lodging  ! development 25/07
+! Read Vegetation Resistance ; considering lodging  ! development 25/12
 !==================================================
 subroutine plantFNdat
     implicit none
@@ -512,14 +597,28 @@ end subroutine plantFNdat
 
 
 !===================================================
-! Read Vegetation Resistance ; flood defence forest  ! development 25/07
+! Read Vegetation Resistance ; flood defence forest  ! fixed & development 25/12
 !===================================================
+!--------------------------------------------------------------------------
+! UNST2D下水道・圃場読み込みサブルーチン/UNST2D drainage process read subroutine
+! 変数/Variable:
+! > グローバル変数/global variable
+!   plant_a_array(mesh): 樹林密度(本/m3)/
+!   plant_D_array(mesh): 胸高直径(m)/
+!   plant_hv_array(mesh): mesh上の植生の有効樹高(m)/
+!   vr_cd(link): 抗力係数
+!   plant_lambda(mesh): 単位体積に占める植生の遮断面積/
+!   vr_hv(link): link上の植生の有効樹高(m)/
+!   dk_val(link): 植生抵抗の係数
+!--------------------------------------------------------------------------
 subroutine plantDadat
     implicit none
-    integer me, fplantD_unit, fplanta_unit
+    integer me, li
+    integer fplantD_unit, fplanta_unit, fplanthv_unit, fplantcd_unit
 
     allocate(plant_D_array(mesh), plant_a_array(mesh), plant_lambda(mesh))
-    allocate(dk_val(link))
+    allocate(plant_hv_array(mesh), vr_cd(link))
+    allocate(vr_hv(link), dk_val(link))
 
     ! breast height diarneter　(m)
     open(newunit = fplantD_unit, file = fplantD, action = 'read')
@@ -534,6 +633,20 @@ subroutine plantDadat
         read(fplanta_unit, *) plant_a_array(me)
     enddo
     close(fplanta_unit)
+
+    ! height (m)
+    open(newunit = fplanthv_unit, file = fplanthv, action = 'read')
+    do me = 1, mesh
+        read(fplanthv_unit, *) plant_hv_array(me)
+    enddo
+    close(fplanthv_unit)
+
+    ! C_D
+    open(newunit = fplantcd_unit, file = fplantcd, action = 'read')
+    do li = 1, link
+        read(fplanta_unit, *) vr_cd(me)
+    enddo
+    close(fplantcd_unit)
 !
 end subroutine plantDadat
 
@@ -684,6 +797,7 @@ subroutine moriddat
             if(ios/=0) then
                 read(line, *, iostat = ios) nmorili(mmo), zbbk(nmorili(mmo))
                 rbeta(nmorili(mmo)) = 0.0d0
+                if(ios/=0) stop 'UNST2D - ERROR-1004 : morido could not be loaded.'
             endif
         if(zbbk(nmorili(mmo)) > 0.0d0) infl(nmorili(mmo)) = 1
     enddo
@@ -770,7 +884,7 @@ subroutine dsmeshdat(lasth)
         elseif (read_count == 2) then
             read(line, *) dsme(i), dstype(i), dswl_num(i)
         else
-            stop 'UNST2D - ERROR-1002 : dsmesh could not be loaded.'
+            stop 'UNST2D - ERROR-1003 : dsmesh could not be loaded.'
         endif
 
         ds_inf(dsme(i)) = dstype(i)

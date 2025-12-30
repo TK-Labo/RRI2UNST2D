@@ -11,7 +11,6 @@ real(8), parameter :: pi = 3.14d0   ! pi
 real(8), parameter :: gg = 9.8d0    ! gravitational acceleration
 real(8), parameter :: th = 1.0d-3   ! Limit depth of movement
 real(8), parameter :: fita = 0.5d0  !
-real(8), parameter :: plant_cd = 1.2d0  ! flow resistance caused by vegetation
 
 ! =============
 !  time & step 
@@ -69,7 +68,8 @@ real(8), allocatable :: qin(:,:)  ! river qin(from RRI)
 ! -- only RRI2UNST2D --
 real(8) rri_dx, rri_dy
 real(8), allocatable :: qinu(:,:), qinv(:,:)  ! slope qin(from RRI)
-real(8), allocatable :: sep_qin(:), vin_coef(:), vin(:,:)   ! v.1.0.5
+real(8), allocatable :: sep_qin(:), rqin_coef(:)   ! v.1.0.5
+integer, allocatable :: qin_inf(:)
 
 ! ======
 !  rain
@@ -90,7 +90,6 @@ real(8), allocatable, save :: unst_gampt_ff(:), unst_gampt_f(:)
 ! ======
 !  else
 ! ======
-real(8) ocpy, unstbeta
 real(8) unst_error_v, unst_dis_v ! numerical error & discharge q
 
 ! ======================================
@@ -101,7 +100,9 @@ integer plantFN, plantDa
 ! -- param & condition --
 integer, allocatable :: plantF_array(:), plantN_array(:)       !植生帯（ヨシ帯）
 real(8), allocatable :: plant_D_array(:), plant_a_array(:)     !植生帯（樹林帯）
+real(8), allocatable :: plant_hv_array(:), vr_cd(:)            !植生帯（樹林帯）
 real(8), allocatable :: dk_val(:), plant_lambda(:)             !植生帯（樹林帯）
+real(8), allocatable :: vr_hv(:)                               !植生帯（樹林帯）
 
 real(8), allocatable :: rri_x(:), rri_y(:)
 
@@ -167,7 +168,8 @@ character(len=50) :: &
 character(len=50) :: &
     fdsmesh, fplantF, fplantN, fplantD, fplanta, &
     fpaddy, fpqout, fpaddy_param, &
-    finf_dr, fdrain, fmorid, fd1riv_cntl
+    finf_dr, fdrain, fmorid, fd1riv_cntl, &
+    fplanthv, fplantcd
 ! -- unit --
 integer :: &
     fdhp_unit, fpaddyh_unit, fpaddyq_unit, &

@@ -5,31 +5,29 @@
 !-----------------------------------------------------------------------
 ! Transfer of flow data from RRI to UNST
 ! In:
-!   ny: RRIの y 軸方向の格子数
-!   nx: RRIの x 軸方向の格子数
-!   i4: RRIの流量配列の数 (4)
-!   qr_ave: RRIの河川流量
-!   qs_ave: RRIの斜面流量
-!   hr: RRIの河川水深
-!   hs: RRIの斜面水深
-!   area: RRIの単一の格子の面積
-!   time: RRIの時間
+!   ny: RRIの y 軸方向の格子数/RRI num of rows
+!   nx: RRIの x 軸方向の格子数/RRI num of cols
+!   i4: RRIの流量配列の数 (4)/RRI num of q-array
+!   qr_ave: RRIの河川流量/RRI river-q
+!   qs_ave: RRIの斜面流量/RRI slope-q
+!   hr: RRIの河川水深/RRI river depth(h)
+!   hs: RRIの斜面水深/RRI slope depth(h)
+!   area: RRIの単一の格子の面積/RRI cell area
+!   time: RRIの時間/RRI cal time
 ! In/Out:
-!   uflg: UNSTの実行フラグ
+!   uflg: UNSTの実行フラグ/UNST2D RUN FLAG
 !-----------------------------------------------------------------------
 subroutine unst_qin(ny, nx, i4, &
      qr_ave, qs_ave, hr, hs, area, time, uflg)
 use unst_globals_mod
 implicit none
-
-! 外部から受け取る配列
 integer, intent(in) :: ny, nx, i4
 real(8), intent(in) :: qr_ave(ny,nx), qs_ave(i4,ny,nx)
 real(8), intent(in) :: hs(ny,nx), hr(ny,nx)
 real(8), intent(in) :: area, time
 integer, intent(inout) :: uflg
 
-real(8) qu(iqnum), qv(iqnum), hr_and_hs(iqnum)
+real(8) qu(iqnum), qv(iqnum), unst_qr(iqnum)
 integer i, ii, id
 
 ! 現在の時間ステップのインデックスを計算
@@ -38,20 +36,23 @@ ii = int(time/dtq) + 1
 if(qin_type==0) then
     !$omp parallel do default(shared),private(i, id)
     do i = 1, iqnum
-        ! 対応するRRIメッシュのIDを取得
+        ! target UNST2D mesh id
         id = limesh(inl(i),1)
 
         ! x方向の流量計算 (RRI斜面方向からUNST方向への変換)
+        ! convert x direction q from RRI q
         qu(i) = (qs_ave(1, rsetsu_i(id), rsetsu_j(id)) &
             + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) &
                 - qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
 
         ! y方向の流量計算 (RRI斜面方向からUNST方向への変換)
+        ! convert y direction q from RRI q
         qv(i) =  (qs_ave(2, rsetsu_i(id), rsetsu_j(id)) &
             + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) &
                 + qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
 
         ! 流入流量の計算
+        ! set qin array
         qin(i, ii) = abs(qr_ave(rsetsu_i(id), rsetsu_j(id)))
         qinu(i, ii) = qu(i)
         qinv(i, ii) = qv(i)
@@ -60,28 +61,79 @@ if(qin_type==0) then
 elseif(qin_type==1) then
     !$omp parallel do default(shared),private(i, id)
     do i = 1, iqnum
-        ! 対応するRRIメッシュのIDを取得
+        ! target UNST2D mesh id
         id = limesh(inl(i),1)
 
         ! x方向の流量計算 (RRI斜面方向からUNST方向への変換)
+        ! convert x direction q from RRI q
         qu(i) = (qs_ave(1, rsetsu_i(id), rsetsu_j(id)) &
             + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) &
                 - qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
 
         ! y方向の流量計算 (RRI斜面方向からUNST方向への変換)
+        ! convert y direction q from RRI q
         qv(i) =  (qs_ave(2, rsetsu_i(id), rsetsu_j(id)) &
             + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)) &
                 + qs_ave(4, rsetsu_i(id), rsetsu_j(id))) / 2.d0) * area
 
-        ! Cal Volume(m3)  v.1.0.5
-        hr_and_hs(i) = hs(rsetsu_i(id), rsetsu_j(id))*area &
-            + hr(rsetsu_i(id), rsetsu_j(id))*vin_coef(i)
+        unst_qr(i) = qr_ave(rsetsu_i(id), rsetsu_j(id))
+
+        select case(qin_inf(id))
+        case(1)
+            qv(i) = qv(i) + &
+                    (qs_ave(2, rsetsu_i(id), rsetsu_j(id)+1) &
+                    + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)+1) &
+                    + qs_ave(4, rsetsu_i(id), rsetsu_j(id)+1)) / 2.d0) * area
+            unst_qr(i) = unst_qr(i) + qr_ave(rsetsu_i(id), rsetsu_j(id)+1) * 0.5d0
+        case(2)
+            qu(i) = qu(i) + &
+                    (qs_ave(1, rsetsu_i(id)+1, rsetsu_j(id)) &
+                    + (qs_ave(3, rsetsu_i(id)+1, rsetsu_j(id)) &
+                    - qs_ave(4, rsetsu_i(id)+1, rsetsu_j(id))) / 2.d0) * area
+            unst_qr(i) = unst_qr(i) + qr_ave(rsetsu_i(id)+1, rsetsu_j(id)) * 0.5d0
+        case(3)
+            qv(i) = qv(i) + &
+                    (qs_ave(2, rsetsu_i(id), rsetsu_j(id)+1) &
+                    + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)+1) &
+                    + qs_ave(4, rsetsu_i(id), rsetsu_j(id)+1)) / 2.d0) * area
+            unst_qr(i) = unst_qr(i) + qr_ave(rsetsu_i(id), rsetsu_j(id)+1) * 0.5d0
+        case(4)
+            qu(i) = qu(i) + &
+                    (qs_ave(1, rsetsu_i(id)-1, rsetsu_j(id)) &
+                    + (qs_ave(3, rsetsu_i(id)-1, rsetsu_j(id)) &
+                    - qs_ave(4, rsetsu_i(id)-1, rsetsu_j(id))) / 2.d0) * area
+            unst_qr(i) = unst_qr(i) + qr_ave(rsetsu_i(id)-1, rsetsu_j(id)) * 0.5d0
+        case(5)
+            qv(i) = qv(i) + &
+                    (qs_ave(2, rsetsu_i(id), rsetsu_j(id)-1) &
+                    + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)-1) &
+                    + qs_ave(4, rsetsu_i(id), rsetsu_j(id)-1)) / 2.d0) * area
+            unst_qr(i) = unst_qr(i) + qr_ave(rsetsu_i(id), rsetsu_j(id)-1) * 0.5d0
+        case(6)
+            qu(i) = qu(i) + &
+                    (qs_ave(1, rsetsu_i(id)-1, rsetsu_j(id)) &
+                    + (qs_ave(3, rsetsu_i(id)-1, rsetsu_j(id)) &
+                    - qs_ave(4, rsetsu_i(id)-1, rsetsu_j(id))) / 2.d0) * area
+            unst_qr(i) = unst_qr(i) + qr_ave(rsetsu_i(id)-1, rsetsu_j(id)) * 0.5d0
+        case(7)
+            qv(i) = qv(i) + &
+                    (qs_ave(2, rsetsu_i(id), rsetsu_j(id)-1) &
+                    + (qs_ave(3, rsetsu_i(id), rsetsu_j(id)-1) &
+                    + qs_ave(4, rsetsu_i(id), rsetsu_j(id)-1)) / 2.d0) * area
+            unst_qr(i) = unst_qr(i) + qr_ave(rsetsu_i(id), rsetsu_j(id)-1) * 0.5d0
+        case(8)
+            qu(i) = qu(i) + &
+                    (qs_ave(1, rsetsu_i(id)+1, rsetsu_j(id)) &
+                    + (qs_ave(3, rsetsu_i(id)+1, rsetsu_j(id)) &
+                    - qs_ave(4, rsetsu_i(id)+1, rsetsu_j(id))) / 2.d0) * area
+            unst_qr(i) = unst_qr(i) + qr_ave(rsetsu_i(id)+1, rsetsu_j(id)) * 0.5d0
+        end select
         
         ! 流入流量の計算
-        qin(i, ii) = qr_ave(rsetsu_i(id), rsetsu_j(id))  ! update v.1.0.5
+        ! set qin array
+        qin(i, ii) = unst_qr(i)  ! update v.1.0.5
         qinu(i, ii) = qu(i)
         qinv(i, ii) = qv(i)
-        vin(i, ii) = hr_and_hs(i)  ! update v.1.0.5
     end do
     !$omp end parallel do
 endif
@@ -97,11 +149,7 @@ endif
 
 ! 結果をファイルに出力
 write(fkyokaiq_unit, '(A8, f8.1)') 'time = ', time
-if(qin_type==0) then
-    write(fkyokaiq_unit, '(10f14.5)') (qin(i, ii), i = 1, iqnum)
-elseif(qin_type==1) then
-    write(fkyokaiq_unit, '(10f14.5)') (vin(i, ii), i = 1, iqnum)
-endif
+write(fkyokaiq_unit, '(10f14.5)') (qin(i, ii), i = 1, iqnum)
 
 end subroutine unst_qin
 
@@ -109,14 +157,14 @@ end subroutine unst_qin
 !-----------------------------------------------------------------------
 ! Transfer of depth data from UNST to RRI
 ! In:
-!   ny: RRIの y 軸方向の格子数
-!   nx: RRIの x 軸方向の格子数
-!   domain: RRIの領域設定
-!   riv: RRIの河川の設定
-!   area: RRIの単一の格子の面積
+!   ny: RRIの y 軸方向の格子数/RRI num of rows
+!   nx: RRIの x 軸方向の格子数/RRI num of cols
+!   domain: RRIの領域設定/RRI active domain
+!   riv: RRIの河川の設定/RRI river domain
+!   area: RRIの単一の格子の面積/RRI cell area
 ! Out:
-!   hs: RRIの斜面水深（更新される）
-!   hr: RRIの河川水深（更新される）
+!   hs: RRIの斜面水深（更新される）/RRI slope depth(update)
+!   hr: RRIの河川水深（更新される）/RRI river depth(update)
 !-----------------------------------------------------------------------
 subroutine unst2rri(ny, nx, domain, riv, hs, hr)
     use unst_globals_mod
@@ -195,16 +243,16 @@ subroutine unst2rri(ny, nx, domain, riv, hs, hr)
         j = rsetsu_j(me)
         if (domain(i,j) == 0) cycle
         if(baseo(me) == -9999.0d0) cycle
-        if(u_to_r_update(i,j) == 1) cycle
+        if(u_to_r_update(i,j) == 1) cycle  ! fixed v.1.0.5
 
         if (riv(i,j) /= 0) then
             ! 河川セルの場合の平均化
             if(counthr(i,j) > 0) then
                 hr(i,j) = hr(i,j) / counthr(i,j)
-                u_to_r_update(i,j) = 1
+                u_to_r_update(i,j) = 1  ! fixed v.1.0.5
             elseif(counthr(i,j) == 0) then
                 hr(i,j) = hrr(i,j) / counthrr(i,j)
-                u_to_r_update(i,j) = 1
+                u_to_r_update(i,j) = 1  ! fixed v.1.0.5
             endif
         else
             ! 斜面セルの場合の平均化

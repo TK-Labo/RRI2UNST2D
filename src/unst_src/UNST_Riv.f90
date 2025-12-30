@@ -7,6 +7,7 @@
 !================================
 !--------------------------------------------------------------------------
 ! 1D Model 主な変数/1D Model Main variable
+!   leap-flogに合わせてn -> n+2 で表記
 !   h_1d(ndan): 断面水位(t=n+2)/cross-sectional depth of a river(t=n+2)
 !   ho_1d(ndan): 断面水位(t=n)/cross-sectional depth of a river(t=n)
 !   a_1d(ndan): 断面河積/cross-sectional area of a river
@@ -704,6 +705,7 @@ end module unst_cnct_1d2d
 module unst_1d_main
     use d1riv_globals_mod
     use d1riv_cal_sub
+    use unst_cnct_1d2d
     
 contains    
 
@@ -721,6 +723,7 @@ subroutine d1riv_main(unsttime)
     call sub_flow_1d
     call q_bound_1d
     call continuous_1d
+    call weir_equation
 
 end subroutine d1riv_main
 

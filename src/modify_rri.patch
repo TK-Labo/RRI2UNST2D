@@ -48,7 +48,7 @@
 +call unst_rdat(ny_rain, qp, nx_rain, tt_max_rain, &
 +    ny, nx, lasth, dt, &
 +    xllcorner_rain, yllcorner_rain, cellsize_rain_x, cellsize_rain_y, &
-+    xllcorner, yllcorner, cellsize)
++    xllcorner, yllcorner, cellsize, dir)
 +call open_unst_output_files
 +if(dsmesh==1) call dsmeshdat(lasth)
 +if(d1riv==1) call d1rivdat(lasth, dt2, mesh, baseo, fd1riv_cntl)
@@ -58,7 +58,7 @@
 +if(drainarea==1) call draindat
 +if(morid==1) call moriddat
 +
-+call unst_initiald(dir, nx, ny, width, len_riv, dx, dy)
++call unst_initiald(dir, nx, ny)
 +if(d1riv==1) call d1rivinitiald(dt2)
 +if(paddydam==1) call paddyinitiald
 +if(drainarea==1) call draininitiald
@@ -113,7 +113,7 @@
 +deallocate(mn, rnof, lambda, rbeta)
 +deallocate(uum, vvm, lhan, lhano, qr_sum, rnx, dl)
 +if(plantFN==1) deallocate(plantF_array, plantN_array)
-+if(plantDa==1) deallocate(plant_D_array, plant_a_array, dk_val)
++if(plantDa==1) deallocate(dk_val)
 +if(paddydam==1) deallocate(paddyid, pqout_idx, pdrain, min_pmeshid, device)
 +if(paddydam==1) deallocate(orifice_num, min_dist, psmesh, dr_dist, dhp, phid)
 +if(paddydam==1) deallocate(paddy_q, pqh, drain2phidx)

@@ -33,7 +33,6 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     real(8) rdummy, rpre_d, rpre_h, rpre_m, rpre_s, d1_spin_ups
     real(8) sum_inland_bs_l, sum_inland_bs_r
     character(len=100) cdummy, line
-    integer, allocatable :: rivmodel(:)
     integer, allocatable :: ud_idx_1d(:,:)  ! up-down bound cross section id
     integer, allocatable :: subflow_type(:)  ! type
     integer frivcntl_unit, &
@@ -45,7 +44,7 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     !=======================
     ! input param
     open(newunit=frivcntl_unit, file=frivcntl, action = 'read')
-    read(frivcntl_unit, *) cdummy, rpre_d, rpre_h, rpre_m, rpre_s
+    read(frivcntl_unit, '(7x, 4f6.1)') cdummy, rpre_d, rpre_h, rpre_m, rpre_s
     read(frivcntl_unit, '(7x, i11)') spout
     read(frivcntl_unit, *) ! d1_dt
     read(frivcntl_unit, '(7x, f11.2)') dz             ! common
@@ -120,7 +119,11 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     ! open input files
     !------------------
     open(newunit= fjudan_unit, file = fjudan, action = 'read')
-    open(newunit= foudan_unit, file = foudan, action = 'read')
+    if(oudan_format==0) then
+        open(newunit= foudan_unit, file = foudan, action = 'read')
+    elseif(oudan_format==1) then
+        open(newunit= foudan_unit, file = foudan_table, action = 'read')
+    endif
     open(newunit= fbound_unit, file = fbound, action = 'read')
     open(newunit= f1d2d_unit, file = f1d2d, action = 'read')
 
@@ -143,7 +146,7 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     allocate(ntype_1d(ndan))
     allocate(h_1d(ndan), vv_1d(ndan), q_1d(ndan))
     allocate(ho_1d(ndan), qo_1d(ndan))
-    allocate(h_1dmax(ndan))
+    allocate(h_1dmax(ndan), vv_1dmax(ndan))
     allocate(kp_1d(ndan), dx_1d(ndan))
     allocate(a_1d(ndan), r_1d(ndan), b_1d(ndan), rn_1d(ndan))
     allocate(depth_1d(ndan))
@@ -609,7 +612,7 @@ subroutine d1riv_table(foudan_table)
     enddo
 
     ! check
-    open(foudan_table_unit, file = foudan_table, action = 'write')
+    open(newunit=foudan_table_unit, file = foudan_table, action = 'write')
     write(foudan_table_unit,'(i10)') max_tbl 
     write(foudan_table_unit,*) '          WL(m)  AREA(m2) RADIUS(m)  WIDTH(m) ROUGHNESS '
     do n = 1, ndan
@@ -672,42 +675,19 @@ subroutine read_oudan_data(line, xc, zc, r)
     implicit none
     character(len=100), intent(in) :: line
     real(8), intent(out) :: xc, zc, r
-    integer :: i, idummy
-    integer :: start, tmp_idx
+    integer ios, idummy
     character(len=100) :: tmp_value
 
     xc = 0.0d0  ! x coord
     zc = 0.0d0  ! y coord
-    r = 0.0d0  ! z coord
+    r = 0.0d0  ! roughness
 
-    start = 1
-    do i = 1, 16
-
-        tmp_idx = index(line(start:),',')
-        if(tmp_idx==0) then
-            tmp_value = line(start:)
-        else
-            tmp_value = line(start:start+tmp_idx-2)
-            tmp_idx = start + tmp_idx -1
-        endif
-
-        tmp_value = trim(adjustl(tmp_value))
-        if(len_trim(tmp_value) /= 0) then
-            if(i==1) then
-                read(tmp_value, *) idummy
-            elseif(i==2) then
-                read(tmp_value, *) xc
-            elseif(i==3) then
-                read(tmp_value, *) zc
-            elseif(i==4) then
-                read(tmp_value, *) r
-            elseif(i>4) then
-                return
-            endif
-        endif
-
-        start = tmp_idx + 1
-    enddo
+    tmp_value = trim(adjustl(line))
+    read(tmp_value,*,iostat=ios) idummy, xc, zc, r
+    if(ios/=0) then
+        read(tmp_value,*,iostat=ios) idummy, xc, zc
+        r = 0.0d0
+    endif
     
 end subroutine read_oudan_data
 
@@ -729,6 +709,7 @@ subroutine d1rivinitiald(dt2)
     a_1d = 0.0d0
     b_1d = 0.0d0
     h_1dmax = 0.0d0
+    vv_1dmax = 0.0d0
     subq_all = 0.0d0
     tributaryq_1d = 0.0d0
     breakq_1d = 0.0d0
@@ -741,7 +722,7 @@ subroutine d1rivinitiald(dt2)
     sluiceq_1d = 0.0d0
     up_q_1d = 0.0d0
 
-    open(finit_unit, file = finit, action = 'read')
+    open(newunit=finit_unit, file = finit, action = 'read')
     ii = 1
     read(finit_unit, *) init_type
     if(init_type==0) then
@@ -755,7 +736,7 @@ subroutine d1rivinitiald(dt2)
         enddo
     elseif(init_type==1) then
         do n = 1, ndan
-            read(finit_unit, *) idummy, ho_1d(i), qo_1d(i)
+            read(finit_unit, *) idummy, ho_1d(n), qo_1d(n)
         enddo
     endif
     close(finit_unit)

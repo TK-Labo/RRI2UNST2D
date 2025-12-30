@@ -1,23 +1,25 @@
 # Changelog
 
-## [1.0.5] - 2025-12-25
+## [1.0.5] - 2025-12-31
 ### Add
 - 変更記録ファイル(CHANGELOG_ja.md / CHANGELOG_en.md)の追加
 - 機能追加
   - (UNST_***.f90共通) 負の水深補正に使用した累計流量の出力を追加
   - (UNST_***.f90共通) 排水された累計流量の出力を追加
-  - (UNST_***.f90共通) RRI->UNST2Dの接続方法の追加(重心水深・フラックス接続)
+  - (UNST_***.f90共通) RRI->UNST2Dの接続方法の追加(メッシュ指定)
   - (UNST_***.f90共通) RRI<-UNST2Dの水深フィードバック有無の選択機能追加
   - (UNST_***.f90共通) 一次元河道(フラクショナルステップ)モデルに対応
   - (UNST_Read2.f90) 一次元河道(フラクショナルステップ)モデルの追加
   - (UNST_Riv.f90) 一次元河道(フラクショナルステップ)モデルの追加
   - (UNST_Mod2.f90) 一次元河道(フラクショナルステップ)モデルの追加
-- Windows用ビルドバッチファイル(make.bat)の追加
+- Windows用ビルドバッチファイル(make_win.bat)の追加
 - Windows用patch反映pythonスクリプト(apply_patch.py)の追加
+- 可視化用サンプルpythonスクリプト(point.py, movie.py, out_to_csv.py)の追加
 
 ### Fixed
 - (UNST_Sub.f90) 田んぼダム有効時(paddydam==1)の水収支処理の不具合を修正
 - (UNST_Sub.f90) 境界流入処理の不具合を修正
+- (UNST_Sub.f90) 倒伏を考慮しない植生抵抗の不正確な処理を修正
 - (UNST_Cnct.f90) UNST2DからRRIへ受け渡す平均水深処理の不具合を修正
 
 ### Change
@@ -26,10 +28,12 @@
   - beta行の削除
   - ocpy行の削除
   - kyokaiq.datの出力先を指定するよう変更
+  - 倒伏を考慮しない植生抵抗のインプットを追加
 - ソースコードの変更
   - (UNST_***.f90共通) コメントの充実化
   - (UNST_***.f90共通) str(貯留)機能の削除
   - (UNST_***.f90共通) 排水処理の各種変数名を変更
+  - (UNST_***.f90共通) 倒伏を考慮しない植生抵抗のインプットを追加(抗力係数，有効な樹高)
   - (UNST_Main.f90) gotoによるループをdo while文によるループに変更
   - (UNST_Main.f90) module化に応じたuseの追加
   - (UNST_Main.f90) interfaceによりrri2unstを明示的に
@@ -56,7 +60,9 @@
   - (modify_rri.patch/RRI_UNST.f90) 各種変更に応じた引数の追加
   - (modify_rri.patch/RRI_UNST.f90) dsmeshの読み込み処理の追加(call dsmesh)
   - (modify_rri.patch/RRI_UNST.f90) 一次元河道関連の処理を追加
-- Makefileのビルド対象からUNST_Break.f90を除外
+- Makefileの更新
+  - ビルド対象からUNST_Break.f90を除外
+  - 一次元河道関連のソースを追加
 - マニュアルの更新(ver.1.0.5)
 
 ## [1.0.0] - 2025-07-07

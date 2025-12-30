@@ -60,13 +60,13 @@ subroutine flux
     implicit none
     real(8) hhe, hhw, hhep, hhwp, hhan, sgn, hh1 !Discontinuous(Drop formula, Overflow formula)
     real(8) u11, v11, u13, v13, sqx, ram !Continuous
-    real(8) plant_force                 ! add plant force
     integer li, k, me1, me2
     real(8) b, h1, h2, uvmn, vol1, vol2
+    real(8) vr_hl, vr_u, vr_v
 
     !$omp parallel do default(shared) &
     !$omp private(hhe, hhw, hhep, hhwp, hhan, sgn, hh1, u11, v11, u13, v13, sqx, ram, li, k, me1, me2) &
-    !$omp private(plant_force, b, h1, h2, uvmn, vol1, vol2)
+    !$omp private(b, h1, h2, uvmn, vol1, vol2, vr_hl, vr_u, vr_v)
   do li = 1, link
     if(limesh(li, 2) == 0) cycle
     if((inf(limesh(li, 2)) == 0) .or. (inf(limesh(li, 1)) == 0) .or. &
@@ -87,8 +87,8 @@ subroutine flux
     if (morid == 1) then
     if(infl(li) == 1) then
         b = blink(li)
-        h1 = max(hhe, hhw) - max(baseo(limesh(li, 1)), baseo(limesh(li,2)), zbbk(li))
-        h2 = min(hhe, hhw) - max(baseo(limesh(li, 1)), baseo(limesh(li,2)), zbbk(li))
+        h1 = max(hhe, hhw) - zbbk(li)
+        h2 = min(hhe, hhw) - zbbk(li)
 
         hhan = hhe - hhw
         sgn = sign(1.0d0, hhan)
@@ -302,18 +302,24 @@ subroutine flux
     ram = gg*rnx(li)**2*sqx/hl(li)**1.333333
     if(hl(li) <= th) ram = 0.0d0
 
-    ! added by k.yamamura
     ! defended forest term
+    ! fixed  v.1.0.5
     if(plantDa==1) then
-        if(dk_val(li)>0.0d0) then
-            plant_force = gg*(sqx**2.0d0)/(dk_val(li)**2.0d0)
-            ram = ram + plant_force
-        endif
+    !        plant_force = gg*(sqx**2.0d0)/(dk_val(li)**2.0d0)
+    !        ram = ram + plant_force
+        vr_hl = min(hl(li), vr_hv(li))
+        vr_u = dk_val(li) * vr_hl * uu(li) * sqx * dt2
+        vr_v = dk_val(li) * vr_hl * vv(li) * sqx * dt2
+    else
+        vr_u = 0.0d0
+        vr_v = 0.0d0
     endif
 
     ! um, vn calculation
-    um(li) = ((1.0d0 - dt2*ram*(1.0d0 - fita))*umo(li) - u11 - u13)/(1.0d0 + dt2*ram*fita)
-    vn(li) = ((1.0d0 - dt2*ram*(1.0d0 - fita))*vno(li) - v11 - v13)/(1.0d0 + dt2*ram*fita)
+    um(li) = ((1.0d0 - dt2*ram*(1.0d0 - fita))*umo(li) - u11 - u13 + vr_u)/ &
+            (1.0d0 + dt2*ram*fita)
+    vn(li) = ((1.0d0 - dt2*ram*(1.0d0 - fita))*vno(li) - v11 - v13 + vr_v)/ &
+            (1.0d0 + dt2*ram*fita)
     lhan(li) = 0
     enddo
     !$omp end parallel do
@@ -366,7 +372,6 @@ subroutine suisin
             if (ds_inf(me)==2) then
                 ii = int( unsttime / ds_dt(me)) + 1
                 tmp_wl = ds_wl(me, ii) + (unsttime - ds_dt(me)*dble(ii - 1))/ds_dt(me)*(ds_wl(me, ii + 1) - ds_wl(me, ii))
-                unst_tmp_ds = unst_tmp_ds + (unsth(me) - max(tmp_wl - baseo(me), 0.000d0)) * smesh(me)  ! v.1.0.5
                 unsth(me) = max(tmp_wl - baseo(me), 0.000d0)
                 cycle
             ! uniform flow(dstype:3) added by d.baba
@@ -377,7 +382,6 @@ subroutine suisin
                         vn(melink(me, k)) = vn(melink(ds_upme(me), k))
                     endif
                 enddo
-                unst_tmp_ds = unst_tmp_ds + (unsth(me) - unsth(ds_upme(me))) * smesh(me)
                 unsth(me) = unsth(ds_upme(me))
                 cycle
             endif
@@ -395,10 +399,10 @@ subroutine suisin
         enddo
 
         ! calculate depth
-        q(me) = dt2*(-sumf/(1.0d0 - lambda(me)) + rr*rnof(me)*smesh(me) + riv_eq(me))
+        q(me) = dt2*(-sumf + rr*rnof(me)*smesh(me) + riv_eq(me))  ! fixed
 
         ! Update Depth
-        unsth(me) = ho(me) + q(me)/smesh(me)
+        unsth(me) = ho(me) + q(me)/( (1.0d0-lambda(me)) * smesh(me) )  ! fixed
         if(paddydam==1 .and. inf(me) == 71) then
             if(unsth(me) >= etp(paddyid(me))) then
                 unsth(me) = unsth(me) - etp(paddyid(me))
@@ -585,90 +589,36 @@ end subroutine replace
 subroutine lkyokai
     implicit none
     real(8) yqin, xqin, rqin
-    real(8) tmp_vin, sep_rqin
     integer j, ii
     integer meid
 
     ii = int(unsttime/dtq) + 1
-    if(qin_type==0) then
-        !$omp parallel do default(shared),private(j, yqin, xqin, rqin, meid)
-        do j = 1, iqnum
-            meid = limesh(inl(j),1)  ! mesh id
-            yqin = qinv(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qinv(j, ii + 1) - qinv(j, ii))
-            xqin = qinu(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qinu(j, ii + 1) - qinu(j, ii))
-            rqin = qin(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qin(j, ii + 1) - qin(j, ii))
-            if(lkyokai_dir(j) > 0) then
-                if(sep_qin(meid)>1) rqin = rqin / dble(sep_qin(meid))
-            else
-                rqin = 0.0d0
-            endif   
-
-            select case(abs(lkyokai_dir(j)))
-                case(1)  ! from left side
-                    um(inl(j)) = (xqin + rqin)/lkyokai_dy(j)
-                case(2)  ! from down side
-                    vn(inl(j)) = (-yqin + rqin)/(-lkyokai_dx(j))
-                case(3)  ! from right side
-                    um(inl(j)) = (xqin - rqin)/(-lkyokai_dy(j))
-                case(4)  ! from upper side
-                    vn(inl(j)) = (-yqin - rqin)/lkyokai_dx(j)
-                case default
-                    ! no qin
-            end select
-        enddo
-        !$omp end parallel do
-
-    elseif(qin_type==1) then
-        !$omp parallel do default(shared),private(j, yqin, xqin, rqin, meid, tmp_vin, sep_rqin)
-        do j = 1, iqnum
-            meid = inl(j)  ! mesh id
-            yqin = qinv(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qinv(j, ii + 1) - qinv(j, ii))
-            xqin = qinu(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qinu(j, ii + 1) - qinu(j, ii))
-            rqin = qin(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qin(j, ii + 1) - qin(j, ii))
-            tmp_vin = max((vin(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(vin(j, ii + 1) - vin(j, ii))), 0.0d0)
-            select case(abs(lkyokai_dir(j)))
-                case(1)  ! from left side
-                    umm(meid) = (xqin + rqin)/rri_dy
-                    vnm(meid) = -yqin/rri_dx
-                    unsth(meid) = tmp_vin/smesh(meid)
-                case(2)  ! from left/upper side
-                    sep_rqin = rqin/2.0d0
-                    umm(meid) = (xqin + sep_rqin)/rri_dy
-                    vnm(meid) = (-yqin + sep_rqin)/rri_dx
-                    unsth(meid) = tmp_vin/smesh(meid)
-                case(4)  ! from upper side
-                    umm(meid) = xqin/rri_dy
-                    vnm(meid) = (-yqin - rqin)/rri_dx
-                    unsth(meid) = tmp_vin/smesh(meid)
-                case(8)  ! from right/upper side
-                    sep_rqin = rqin/2.0d0
-                    umm(meid) = (xqin - sep_rqin)/rri_dy
-                    vnm(meid) = (-yqin - sep_rqin)/rri_dx
-                    unsth(meid) = tmp_vin/smesh(meid)
-                case(16)  ! from right side
-                    umm(meid) = (xqin - rqin)/rri_dy
-                    vnm(meid) = -yqin/rri_dx
-                    unsth(meid) = tmp_vin/smesh(meid)
-                case(32)  ! from right/down side
-                    sep_rqin = rqin/2.0d0
-                    umm(meid) = (xqin - sep_rqin)/rri_dy
-                    vnm(meid) = (-yqin + sep_rqin)/rri_dx
-                    unsth(meid) = tmp_vin/smesh(meid)
-                case(64)  ! from down side
-                    umm(meid) = xqin/rri_dy
-                    vnm(meid) = (-yqin + rqin)/rri_dx
-                    unsth(meid) = tmp_vin/smesh(meid)
-                case(128)  ! from left/down side
-                    sep_rqin = rqin/2.0d0
-                    umm(meid) = (xqin + sep_rqin)/rri_dy
-                    vnm(meid) = (-yqin + sep_rqin)/rri_dx
-                    unsth(meid) = tmp_vin/smesh(meid)
-                case default
-                    ! no qin
-            end select
-        enddo
-        !$omp end parallel do
-    endif
+    !$omp parallel do default(shared),private(j, yqin, xqin, rqin, meid)
+    do j = 1, iqnum
+        meid = limesh(inl(j),1)  ! mesh id
+        yqin = qinv(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qinv(j, ii + 1) - qinv(j, ii))
+        xqin = qinu(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qinu(j, ii + 1) - qinu(j, ii))
+        rqin = qin(j, ii) + (unsttime - dtq*dble(ii - 1))/dtq*(qin(j, ii + 1) - qin(j, ii))
+        if(lkyokai_dir(j) > 0) then
+            if(sep_qin(meid)>1) rqin = rqin / dble(sep_qin(meid))
+        else
+            rqin = 0.0d0
+        endif
+        
+        select case(abs(lkyokai_dir(j)))
+            case(1)  ! from left side
+                um(inl(j)) = (xqin + rqin*rqin_coef(j))/lkyokai_dy(j)
+            case(2)  ! from down side
+                vn(inl(j)) = (-yqin + rqin*rqin_coef(j))/lkyokai_dx(j)
+            case(3)  ! from right side
+                um(inl(j)) = (xqin + rqin*rqin_coef(j))/lkyokai_dy(j)
+            case(4)  ! from upper side
+                vn(inl(j)) = (-yqin + rqin*rqin_coef(j))/lkyokai_dx(j)
+            case default
+                ! no qin
+        end select
+    enddo
+    !$omp end parallel do
 
 end subroutine lkyokai
 

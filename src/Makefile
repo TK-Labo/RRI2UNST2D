@@ -45,9 +45,11 @@ BUILD_DIR = build
 
 # UNST のオブジェクトファイルの取得
 # モジュール オブジェクト
-UNST_MODULE = ${BUILD_DIR}/UNST_Mod.o ${BUILD_DIR}/UNST_Write.o
+UNST_MODULE = ${BUILD_DIR}/UNST_Mod.o ${BUILD_DIR}/UNST_Mod2.o ${BUILD_DIR}/UNST_Write.o ${BUILD_DIR}/UNST_Read.o \
+ ${BUILD_DIR}/UNST_Read2.o ${BUILD_DIR}/UNST_Sub.o ${BUILD_DIR}/UNST_Sub.o ${BUILD_DIR}/UNST_Riv.o
 # モジュール以外
-UNST_SOURCES = $(filter-out $(UNST_DIR)/UNST_Mod.f90 $(UNST_DIR)/UNST_Write.f90, \
+UNST_SOURCES = $(filter-out $(UNST_DIR)/UNST_Mod.f90 $(UNST_DIR)/UNST_Mod2.f90 $(UNST_DIR)/UNST_Write.f90 \
+ $(UNST_DIR)/UNST_Read.f90 $(UNST_DIR)/UNST_Read2.f90 $(UNST_DIR)/UNST_Sub.f90 $(UNST_DIR)/UNST_Riv.f90 ,\
  $(wildcard $(UNST_DIR)/*$(FSUFFIX)))
 UNST_OBJECTS = $(UNST_MODULE)
 UNST_OBJECTS += $(patsubst $(UNST_DIR)/%$(FSUFFIX), $(BUILD_DIR)/%$(OSUFFIX), $(UNST_SOURCES))

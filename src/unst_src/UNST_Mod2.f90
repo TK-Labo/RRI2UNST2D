@@ -1,3 +1,6 @@
+! Define Global Variables
+! Coded by TK Labo
+
 module d1riv_globals_mod
 
 ! ===========================================
@@ -39,7 +42,7 @@ real(8), allocatable :: q_1d(:), qo_1d(:)  ! volume
 real(8), allocatable :: a_1d(:), r_1d(:)   ! area, radius
 real(8), allocatable :: b_1d(:), rn_1d(:)  ! width, roughness
 
-real(8), allocatable :: h_1dmax(:)  ! max h
+real(8), allocatable :: h_1dmax(:), vv_1dmax(:)  ! max h, vv
 
 ! -- fractional step -- TK.Labo
 real(8) dz

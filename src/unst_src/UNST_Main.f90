@@ -105,6 +105,7 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
         !$omp parallel do default(shared),private(i)
         do i = 1, ndan
             h_1dmax(i) = max(h_1dmax(i), h_1d(i))
+            vv_1dmax(i) = max((vv_1dmax(i)), abs(vv_1d(i)))
         enddo
         !$omp end parallel do
     endif
@@ -124,6 +125,6 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     ! UNST to RRI
-    if(cnct_mode==1) call unst2rri(ny, nx, domain, riv, hs, hr)
+    if(cnct_mode==1) call unst2rri(ny, nx, domain, riv, hs, hr)  ! select v.1.0.5
 
 end subroutine UNST2D

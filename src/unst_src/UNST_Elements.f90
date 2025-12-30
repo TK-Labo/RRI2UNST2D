@@ -2,7 +2,12 @@
 ! Coded by K.Kawaike and TK Labo
 ! Latest Update July 7th 2025
 
-! paddy field dam
+! =================
+!  paddy field dam
+! =================
+! -----------------
+!  Initialize
+! -----------------
 subroutine paddyinitiald
     use unst_globals_mod
     implicit none
@@ -100,8 +105,9 @@ subroutine paddyinitiald
 
 end subroutine paddyinitiald
 
-
+! ------------------------------------
 ! paddy field dam outflow calculation
+! ------------------------------------
 subroutine timedelay_paddyflow
     use unst_globals_mod
     implicit none
@@ -204,8 +210,12 @@ subroutine paddyflow
 
 end subroutine paddyflow
 
-
-! sewerage and fields are
+! =========================
+!  sewerage and fields are
+! =========================
+! -----------------
+!  Initialize
+! -----------------
 subroutine draininitiald
     use unst_globals_mod
     implicit none
@@ -281,8 +291,9 @@ subroutine draininitiald
 
 end subroutine draininitiald
 
-
-! drain outflow calculation
+! ---------------------------
+!  drain outflow calculation
+! ---------------------------
 subroutine drainflow
     use unst_globals_mod
     implicit none

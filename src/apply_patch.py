@@ -1,8 +1,9 @@
+# TK.Labo
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-改善版パッチ適用スクリプト
-Usage: python apply_patch.py <patch_file> <target_file>
+パッチ適用スクリプト
+Usage: python apply_patch.py <patch_file> <target_file> 
 """
 
 import sys
@@ -10,7 +11,7 @@ import re
 from pathlib import Path
 
 def normalize_line(line):
-    """行を正規化（改行コード統一、末尾空白除去は慎重に）"""
+    """行を正規化（改行コード統一、末尾空白除去）"""
     # 改行コードを統一
     return line.replace('\r\n', '\n').replace('\r', '\n')
 

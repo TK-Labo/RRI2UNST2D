@@ -117,6 +117,7 @@ module unst_write_procedures
     subroutine open_unst_output_files
         use unst_globals_mod
         implicit none
+        integer i
 
         ! output file set
         open(newunit = fh_unit, file = fh, action = 'write')
@@ -129,6 +130,12 @@ module unst_write_procedures
         open(newunit = fq_unit, file = fq, action = 'write')
         open(newunit = fkyokaiq_unit, file = fkyokaiq, action = 'write')
 
+        if(qin_type==1) then
+            do i = 1, iqnum
+                write(fkyokaiq_unit, *) inl(i)  ! link id write v.1.0.5
+            enddo
+        endif
+
         if(paddydam==1) then
             open(newunit = fdhp_unit, file = fdhp, action = 'write')
             open(newunit = fpaddyh_unit, file = fpaddyh, action = 'write')
@@ -138,6 +145,10 @@ module unst_write_procedures
         if(d1riv==1) then
             open(newunit = fd1out_unit, file = fd1out, action = 'write')
             open(newunit = fd1mx_unit, file = fd1mx, action = 'write')
+            write(fd1out_unit, '(A)') &
+                '  rid     kp(m)     wl(m)  depth(m)   q(m3/s) velo(m/s)  subq(m3)'
+            write(fd1mx_unit, '(A)') &
+                '  rid     kp(m)     wl(m)  depth(m)   q(m3/s) velo(m/s)  subq(m3)'
         endif
 
     end subroutine
@@ -190,7 +201,7 @@ contains
         integer me
         real(8) sv, sa, saj
     
-        ! inundation water level (Former subroutine sumqa (UNST_Sub.f90))
+        ! inundation water level (Former subroutine sumqa (UNST_Sub.f90))  v.1.0.5
         sv = 0.0d0
         sa = 0.0d0
         saj = 0.0d0
@@ -290,8 +301,9 @@ contains
         !$omp end sections
         !$omp end parallel
 
+        ! v.1.0.5
         if(d1riv==1) call write_multi_data(fd1mx_unit, ndan, kp_1d, rbed_1d, &
-                                            h_1dmax, q_1d, vv_1d, subq_all, a_1d)
+                                            h_1dmax, q_1d, vv_1dmax, subq_all, a_1d)
     end subroutine wrhmax
 
 end module unst_wrfile
