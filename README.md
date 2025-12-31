@@ -27,33 +27,39 @@ https://www.pwri.go.jp/icharm/research/rri/index_j.html
 
 プロジェクトは次の主要なディレクトリとファイルで構成されています:
 
-- `src/`: Fortranソースコードが格納されたディレクトリ
-  - UNST2Dモデル関連のファイル（`UNST*.f90`）
+- `src`:Fortranソースコードが格納されたディレクトリ
+  - `src/unst_src`: UNST2Dモデル関連ソースコードが格納されたディレクトリ
+    - UNST2Dモデル関連のファイル（`UNST*.f90`）
   - Makefile
 
 The project consists of the following main directories and files:
 
 - `src/`: Directory where Fortran source code is stored
-  - UNST2D model related files（`UNST*.f90`）
+  - `src/unst_src`: Directory where UNST2D model related Fortran source code is stored
+    - UNST2D model related files（`UNST*.f90`）
   - Makefile
 
 
 ## Compile
 RRIとUNST2Dによる連成計算を行うプログラム`RRI_UNST.exe`を生成する手順は以下の通りです。
 
-1. RRI関連コードの内、`RRI-CUI/source/1.4.2.7/*.f90`を本プロジェクトの`src`ディレクトリにコピーしてください。
+1. RRI関連コードの内、`RRI-CUI/source/1.4.2.7`を本プロジェクトの`src`ディレクトリ直下にフォルダごとコピーしてください。
 2. RRIのソースコードに連成計算に必要なコードを追加してください。コードの追加方法については [Coupled calculation with the RRI model](#Coupled calculation with the RRI model) を参照してください。
 3. `src`ディレクトリで以下のコマンドを実行すると、`RRI_UNST.exe`が生成されます。
 
 The procedure for generating the program RRI_UNST.exe that performs coupled calculations using RRI and UNST2D is as follows.  
   
-1. Among the RRI related codes, copy `RRI-CUI/source/1.4.2.7/*.f90` to the `src` directory of this project.
+1. Among the RRI related codes, copy `RRI-CUI/source/1.4.2.7` to the `src` directory of this project.
 2. Please add the code required for coupled calculation to the RRI source code. For how to add the code, see [Coupled calculation with the RRI model](#Coupled calculation with the RRI model).
 3. Execute the following command in the `src` directory to generate `RRI_UNST.exe`.
 
-
+Makeコマンドが使用可能な場合 / Make command is available
 ```bash
 make
+```
+Makeコマンドが使用不能な場合(Windowsのみ) / Make command cannot be used(only windows)
+```bash
+.\make_win
 ```
 
 
@@ -71,9 +77,20 @@ GNU patch コマンドが利用可能であれば、パッチ ファイル`modif
   
 If you want to perform a coupled calculation with the RRI model, obtain the RRI model (ver.1.4.2.7) from the Public Works Research Institute and add the code to `RRI.f90` according to the following procedure. The line numbers in (Line.) in the following procedure refer to the line numbers in `RRI.f90` (ver.1.4.2.7). If you have the GNU patch command available, you can apply the modifications automatically using the patch file `modify_rri.patch`. Overwrite `RRI.f90` with the command below.
   
-  
+patchコマンドが使用可能な場合 / patch command is available
 ```bash
 patch RRI.f90 < modify_rri.patch
+```
+
+改行コードや空白のずれからエラーが出ることがある / Errors may occur due to misalignment of line break codes or spaces
+```bash
+patch -l RRI.f90 -o RRI_UNST.f90 < modify_rri.patch
+```
+
+patchコマンドが使用不能な場合(python環境が必要)  
+/ Make command cannot be used(Python environment required)
+```bash
+python apply_patch.py modify_rri.patch 1.4.2.7/RRI.f90
 ```
   
 
@@ -89,6 +106,12 @@ https://www.pwri.go.jp/icharm/research/rri/index_j.html
 ```diff
  use globals
 +use unst_globals_mod
++unst_write_procedures
++use unst_wrfile
++use unst_prewrfile
++use unst_read
++use d1riv_globals_mod
++use unst_d1riv_read
 ```
 
 #### 2. Add Variables after line.67 of RRI.f90 (ver.1.4.2.7).
@@ -128,24 +151,22 @@ This modification is for compiliation with gfortran.
 +call unst_rdat(ny_rain, qp, nx_rain, tt_max_rain, &
 +    ny, nx, lasth, dt, &
 +    xllcorner_rain, yllcorner_rain, cellsize_rain_x, cellsize_rain_y, &
-+    xllcorner, yllcorner, cellsize)
++    xllcorner, yllcorner, cellsize, dir)
++call open_unst_output_files
++if(dsmesh==1) call dsmeshdat(lasth)
++if(d1riv==1) call d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
 +if(plantFN==1) call plantFNdat
 +if(plantDa==1) call plantDadat
 +if(paddydam==1) call paddydat
 +if(drainarea==1) call draindat
++if(drainarea==1) call draindat
 +if(morid==1) call moriddat
 +
-+call unst_initiald
++call unst_initiald(dir, nx, ny)
++if(d1riv==1) call d1rivinitiald(dt2)
+
 +if(paddydam==1) call paddyinitiald
 +if(drainarea==1) call draininitiald
-+
-+if(str_type == 0) then
-+  phi(61) = 0.20d0
-+  phi(63) = 0.20d0
-+elseif(str_type == 1) then
-+  phi(61) = 0.05d0
-+  phi(63) = 0.20d0
-+endif
 +
 +call diskwrite
 +call dispwrite
@@ -172,7 +193,13 @@ This modification is for compiliation with gfortran.
 + call unst_qin(ny, nx, i4, qr_ave, qs_ave, hr, hs, area, time, uflg)
 + if(mod(time, timmax) == 0 .and. uflg==0) call predispwrite(time)
 + if(mod(time, timmax) == 0 .and. uflg==0) call prediskwrite(time)
-+ if(mod(time, timmax) == 0 .and. uflg==1) call UNST(ny, nx, domain, riv, area, time, hs, hr)
++ if(mod(time, timmax) == 0 .and. uflg==1) then
++  call UNST2D(ny, nx, domain, riv, area, time, hs, hr)
++
++  ! calculate river and slope interaction
++  call funcrs(hr, hs)
++  write(*,*) 'UNST >>> RRI h replaced'
++ endif
 +
   ! check water balance
   if(mod(t, 1).eq.0) then
@@ -188,41 +215,33 @@ This modification is for compiliation with gfortran.
 +write(*, 1999) time
 +1999 format('      - normal end -  time=', f8.0)
 +
-+if(str_type==1) then
-+  close(10077)
-+  close(10078)
-+endif
-+close(10091)
-+close(10093)
-+close(10094)
-+close(10095)
-+close(10096)
-+close(10097)
-+close(100101)
-+close(100102)
-+close(100103)
-+
-+if(paddydam==1) then
-+  close(10098)
-+  close(10099)
-+  close(100100)
-+endif
++call close_unst_output_files
 +
 +deallocate(baseo, dnox, dnoy, smesh, scv, rthl, ux, uy, xmesh, ymesh, rtuv_x, rtuv_y)
 +deallocate(limesh, linode, inf, ko, menode, melink, inl, qin, lkyokai_dx, lkyokai_dy)
 +deallocate(unsth, ho, hl, hmax, uummax, vvmmax)
 +deallocate(um, umo, umm, uu, vn, vno, vnm, vv)
-+deallocate(mn, rnof, lambda, rbeta, umbeta, vnbeta)
++deallocate(mn, rnof, lambda, rbeta)
 +deallocate(uum, vvm, lhan, lhano, qr_sum, rnx, dl)
-+deallocate(unstc, co, str, stro, strmx)
 +if(plantFN==1) deallocate(plantF_array, plantN_array)
-+if(plantDa==1) deallocate(plant_D_array, plant_a_array, dk_val)
++if(plantDa==1) deallocate(dk_val)
 +if(paddydam==1) deallocate(paddyid, pqout_idx, pdrain, min_pmeshid, device)
 +if(paddydam==1) deallocate(orifice_num, min_dist, psmesh, dr_dist, dhp, phid)
 +if(paddydam==1) deallocate(paddy_q, pqh, drain2phidx)
 +if(drainarea==1) deallocate(inf_dr, drp, drr, drr_dist, dhj)
-+if(dsmesh==1) deallocate(dsdt, dsinf, dsupper, dsfilter2)
-+if(ga==1) deallocate(genes)
++if(dsmesh==1) then
++    if(any(ds_inf==2)) deallocate(ds_wl)
++    if(dsmesh==1) deallocate(ds_dt, ds_inf, ds2me, ds_upme)
++endif
++if(d1riv==1) deallocate(riv_ndan, h_1d, ho_1d, vv_1d, q_1d, qo_1d, a_1d, r_1d, b_1d, rn_1d)
++if(d1riv==1) deallocate(h_1dmax, ntype_1d, kp_1d, dx_1d, depth_1d, rbet_1d, rzmax_1d)
++if(d1riv==1) deallocate(dan_record, n_tbl, h_table, a_table, r_table, b_table, rn_table)
++if(d1riv==1) deallocate(b_idx_1d, b_dt_1d, b_data_1d, up_h_1d, up_q_1d, b_upme_1d, b_dome_1d)
++if(d1riv==1) deallocate(subflow_input, subq_all, tributaryq_1d, pumpq_1d, sluiceq_1d)
++if(d1riv==1) deallocate(breakq_1d, breakq_l_1d, breakq_r_1d)
++if(d1riv==1) deallocate(weirq_1d, weirq_l_1d, weirq_r_1d, weir_dx_1d)
++if(d1riv==1) deallocate(w_alpha_1d, w_angle_1d, bktype_1d)
++if(d1riv==1) deallocate(ncnct_1d2d, cnct_1d2d_idx, crown_1d, inland_1d)
 +
  !pause
 
