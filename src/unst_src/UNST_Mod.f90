@@ -11,6 +11,8 @@ real(8), parameter :: pi = 3.14d0   ! pi
 real(8), parameter :: gg = 9.8d0    ! gravitational acceleration
 real(8), parameter :: th = 1.0d-3   ! Limit depth of movement
 real(8), parameter :: fita = 0.5d0  !
+real(8), parameter :: vr_maxfh_per = 0.2d0
+real(8), parameter :: vr_startf = 0.12d0
 
 ! =============
 !  time & step 

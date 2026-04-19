@@ -33,8 +33,8 @@ subroutine unst_initiald(dir, nx, ny)
     do me = 1, mesh
         do k = 1, ko(me)
             k2 = mod(k, ko(me)) + 1
-            node_dx(me, k) = dnox(menode(me, k2)) - dnox(menode(me, k))
-            node_dy(me, k) = dnoy(menode(me, k2)) - dnoy(menode(me, k))
+            node_dx(k, me) = dnox(menode(k2, me)) - dnox(menode(k, me))
+            node_dy(k, me) = dnoy(menode(k2, me)) - dnoy(menode(k, me))
         enddo
     enddo
     !$omp end parallel do
@@ -85,7 +85,7 @@ subroutine unst_initiald(dir, nx, ny)
             mesh_dy = ymesh(limesh(li, 2)) - ymesh(limesh(li, 1))
             dl(li) = sqrt(mesh_dx**2 + mesh_dy**2)
             blink(li) = sqrt((dnox(linode(li, 1)) - dnox(linode(li, 2))) **2 &
-                             + (dnox(linode(li, 1)) - dnox(linode(li, 2)) ** 2))
+                             + (dnoy(linode(li, 1)) - dnoy(linode(li, 2)) ** 2))  ! fixed v1.0.5.1
         endif
     enddo
     !$omp end parallel do
@@ -127,6 +127,43 @@ subroutine unst_initiald(dir, nx, ny)
         !$omp end parallel do
         deallocate(plant_lambda, plant_hv_array, vr_cd)
     endif
+    
+    ! option : plantFN v.1.0.5.1
+    ! if(plantFN==1) then
+    !     do li = 1, link
+    !         if(limesh(li,2)/=0) cycle
+    !         ! N
+    !         if(plantN_array(limesh(li, 1))>0.0d0 .or. plantN_array(limesh(li, 2))>0.0d0) then
+    !             vr_N(li) = 0.5d0 * (plantN_array(limesh(li, 1)) + plantN_array(limesh(li, 2)))
+    !         endif
+    !         ! Al
+    !         if(plantAl_array(limesh(li, 1))>0.0d0 .or. plantAl_array(limesh(li, 2))>0.0d0) then
+    !             vr_Al(li) = 0.5d0 * (plantAl_array(limesh(li, 1)) + plantAl_array(limesh(li, 2)))
+    !         endif
+    !         ! l
+    !         if(plantl_array(limesh(li, 1))>0.0d0 .or. plantl_array(limesh(li, 2))>0.0d0) then
+    !             vr_l(li) = 0.5d0 * (plantl_array(limesh(li, 1)) + plantl_array(limesh(li, 2)))
+    !         endif
+    !         ! d
+    !         if(plantdd_array(limesh(li, 1))>0.0d0 .or. plantdd_array(limesh(li, 2))>0.0d0) then
+    !             vr_dd(li) = 0.5d0 * (plantdd_array(limesh(li, 1)) + plantdd_array(limesh(li, 2)))
+    !         endif
+    !         vr_ld(li) = 0.5d0*vr_l(li)*vr_dd(li)
+    !         ! C_d
+    !         if(stemCd_array(limesh(li, 1))>0.0d0 .or. stemCd_array(limesh(li, 2))>0.0d0) then
+    !             stem_cd(li) = 0.5d0 * (stemCd_array(limesh(li, 1)) + stemCd_array(limesh(li, 2)))
+    !         endif
+    !         ! C_dl
+    !         if(leavesCdl_array(limesh(li, 1))>0.0d0 .or. leavesCdl_array(limesh(li, 2))>0.0d0) then
+    !             leaves_cdl(li) = 0.5d0 * (leavesCdl_array(limesh(li, 1)) + leavesCdl_array(limesh(li, 2)))
+    !         endif
+    !         ! C_sl
+    !         if(leavesCsl_array(limesh(li, 1))>0.0d0 .or. leavesCsl_array(limesh(li, 2))>0.0d0) then
+    !             leaves_csl(li) = 0.5d0 * (leavesCsl_array(limesh(li, 1)) + leavesCsl_array(limesh(li, 2)))
+    !         endif
+    !     enddo
+    ! endif
+
     ! option : morido
     if(mmorid==1) then
         !$omp parallel do default(shared),private(li,max_baseo)

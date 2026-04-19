@@ -60,8 +60,8 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     do me = 1, mesh
         if(unsth(me) >= th) cycle
         do k = 1, ko(me)
-            li = melink(me, k)
-            if((um(li)*node_dy(me,k) - vn(li)*node_dx(me,k)) > 0.0d0) then
+            li = melink(k, me)
+            if((um(li)*node_dy(k, me) - vn(li)*node_dx(k, me)) > 0.0d0) then
                 um(li) = 0.0d0
                 vn(li) = 0.0d0
             endif

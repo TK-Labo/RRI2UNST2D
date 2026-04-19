@@ -283,20 +283,20 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     write(*,*) ' - mesh : ', mesh, 'grids'
     write(*,*) '   > interpolation type:', sep_rtuv
 
-    allocate(ko(mesh), menode(mesh, 6), melink(mesh, 6), smesh(mesh), xmesh(mesh), ymesh(mesh))
-    allocate(rtuv_x(mesh, 6), rtuv_y(mesh, 6))
+    allocate(ko(mesh), menode(6, mesh), melink(6, mesh), smesh(mesh), xmesh(mesh), ymesh(mesh))
+    allocate(rtuv_x(6, mesh), rtuv_y(6, mesh))
     do me = 1, mesh
-        read(fmesh_unit, 1232) ko(me), (menode(me, k), k = 1, ko(me))
-        read(fmesh_unit, 1233) (melink(me, k), k = 1, ko(me))
+        read(fmesh_unit, 1232) ko(me), (menode(k, me), k = 1, ko(me))
+        read(fmesh_unit, 1233) (melink(k, me), k = 1, ko(me))
         read(fmesh_unit, 1234) smesh(me), xmesh(me), ymesh(me)
         if (sep_rtuv==0) then
             ! weight distance only
-            read(fmesh_unit, 1235) (rtuv_x(me, k), k = 1, ko(me))
-            rtuv_y(me, 1:ko(me)) = rtuv_x(me, 1:ko(me))
+            read(fmesh_unit, 1235) (rtuv_x(k, me), k = 1, ko(me))
+            rtuv_y(1:ko(me), me) = rtuv_x(1:ko(me), me)
         elseif (sep_rtuv==1) then
             ! weight distance and angle added by d.baba
-            read(fmesh_unit, 1235) (rtuv_x(me, k), k = 1, ko(me))
-            read(fmesh_unit, 1235) (rtuv_y(me, k), k = 1, ko(me))
+            read(fmesh_unit, 1235) (rtuv_x(k ,me), k = 1, ko(me))
+            read(fmesh_unit, 1235) (rtuv_y(k, me), k = 1, ko(me))
         endif
     enddo
 1232 format(8x, i5, 5x, 20i8)
@@ -466,7 +466,7 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
         do i = 1, iqnum
             read(fqin_unit, *) tmp_inl
             do k = 1, ko(tmp_inl)
-                if(limesh(melink(tmp_inl, k), 2)==0) outedge_num = outedge_num + 1
+                if(limesh(melink(k, tmp_inl), 2)==0) outedge_num = outedge_num + 1
             enddo
         enddo
         rewind(fqin_unit)
@@ -491,9 +491,9 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
             read(fqin_unit, *) tmp_inlme(i)
             except_judge = 1
             do k = 1, ko(tmp_inlme(i))
-                if(limesh(melink(tmp_inlme(i), k), 2)==0) then
+                if(limesh(melink(k, tmp_inlme(i)), 2)==0) then
                     outedge_num = outedge_num + 1
-                    inl(outedge_num) = melink(tmp_inlme(i), k)
+                    inl(outedge_num) = melink(k, tmp_inlme(i))
                     except_judge = 0
                 endif
             enddo
@@ -517,8 +517,8 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
                 enddo
                 if(rsetsu_i(tmp_inlme(i))/=1 .and. rsetsu_j(tmp_inlme(i))/=1) then
                     if(qin_j(i,1)==0 .and. dir(rsetsu_i(tmp_inlme(i))-1, rsetsu_j(tmp_inlme(i))-1)==2) then
-                        qin_inf(unst_ij(rsetsu_i(tmp_inlme(i))-1, rsetsu_j(tmp_inlme(i)))) = 1
-                        qin_inf(unst_ij(rsetsu_i(tmp_inlme(i)), rsetsu_j(tmp_inlme(i))-1)) = 2
+                        qin_inf(unst_ij(rsetsu_i(tmp_inlme(i))-1, rsetsu_j(tmp_inlme(i)))) = 2  ! fixed v.1.0.5.1
+                        qin_inf(unst_ij(rsetsu_i(tmp_inlme(i)), rsetsu_j(tmp_inlme(i))-1)) = 1  ! fixed v.1.0.5.1
                         cycle
                     endif
                 endif
@@ -558,7 +558,7 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     allocate(unsth(mesh), ho(mesh), hl(link), hmax(mesh), uummax(mesh), vvmmax(mesh))
     allocate(umm(0:mesh), vnm(0:mesh))
     allocate(uum(mesh), vvm(mesh))
-    allocate(node_dx(mesh,6), node_dy(mesh,6))
+    allocate(node_dx(6, mesh), node_dy(6, mesh))
     allocate(rnof(mesh), qr_sum(mesh), riv_eq(mesh))
     allocate(um(link), umo(link), uu(link), vn(link), vno(link), vv(link))
     allocate(umbeta(link), vnbeta(link))
@@ -576,6 +576,7 @@ end subroutine unst_rdat
 subroutine plantFNdat
     implicit none
     integer me, fplantF_unit, fplantN_unit
+    ! integer fplant_Alld_unit, fplant_C_unit  development v.1.0.5.1
 
     allocate(plantF_array(mesh), plantN_array(mesh))
 
@@ -592,6 +593,19 @@ subroutine plantFNdat
         read(fplantN_unit, *) plantN_array(me)
     enddo
     close(fplantN_unit)
+
+    ! development v.1.0.5.1
+    ! open(newunit = fplantAlld_unit, file = fplantAlld, action = 'read')
+    ! do me = 1, mesh
+    !     read(fplantAlld_unit, *) plantAl_array(me), plantl_array(me), plantdd_array(me)
+    ! enddo
+    ! close(fplantAlld_unit)
+    !
+    ! open(newunit = fplantC_unit, file = fplantC, action = 'read')
+    ! do me = 1, mesh
+    !     read(fplantC_unit, *) stemCd_array(me), leavesCdl_array(me), leavesCsl_array(me)
+    ! enddo
+    ! close(fplantC_unit)
 
 end subroutine plantFNdat
 
@@ -644,7 +658,7 @@ subroutine plantDadat
     ! C_D
     open(newunit = fplantcd_unit, file = fplantcd, action = 'read')
     do li = 1, link
-        read(fplanta_unit, *) vr_cd(me)
+        read(fplanta_unit, *) vr_cd(li)
     enddo
     close(fplantcd_unit)
 !
@@ -929,18 +943,18 @@ subroutine dsmeshdat(lasth)
             sum_rtuv_x(dsme(i)) = 0.0d0
             sum_rtuv_y(dsme(i)) = 0.0d0
             do k = 1, ko(dsme(i))
-                if (limesh(melink(dsme(i),k),2)/=0) then
-                    sum_rtuv_x(dsme(i)) = sum_rtuv_x(dsme(i)) + rtuv_x(dsme(i),k)
-                    sum_rtuv_y(dsme(i)) = sum_rtuv_y(dsme(i)) + rtuv_y(dsme(i),k)
+                if (limesh(melink(k, dsme(i)),2)/=0) then
+                    sum_rtuv_x(dsme(i)) = sum_rtuv_x(dsme(i)) + rtuv_x(k, dsme(i))
+                    sum_rtuv_y(dsme(i)) = sum_rtuv_y(dsme(i)) + rtuv_y(k, dsme(i))
                 endif
             enddo
             do k = 1, ko(dsme(i))
-                if (limesh(melink(dsme(i),k),2)/=0) then
-                    rtuv_x(dsme(i),k) = rtuv_x(dsme(i), k)/sum_rtuv_x(dsme(i))
-                    rtuv_y(dsme(i),k) = rtuv_y(dsme(i), k)/sum_rtuv_y(dsme(i))
+                if (limesh(melink(k, dsme(i)),2)/=0) then
+                    rtuv_x(k, dsme(i)) = rtuv_x(k, dsme(i))/sum_rtuv_x(dsme(i))
+                    rtuv_y(k, dsme(i)) = rtuv_y(k, dsme(i))/sum_rtuv_y(dsme(i))
                 else
-                    rtuv_x(dsme(i),k) = 0.0d0
-                    rtuv_y(dsme(i),k) = 0.0d0
+                    rtuv_x(k, dsme(i)) = 0.0d0
+                    rtuv_y(k, dsme(i)) = 0.0d0
                 endif
             enddo
 
@@ -950,11 +964,11 @@ subroutine dsmeshdat(lasth)
             if (ko(dsme(i))==4) then
                 do k = 1, ko(dsme(i))
                     ! set upper meshid
-                    if (limesh(melink(dsme(i), k),2) == 0) then
-                        if (limesh(melink(dsme(i), mod(k+1,4)+1),1) == dsme(i)) then
-                            ds_upme(dsme(i)) = limesh(melink(dsme(i), mod(k+1,4)+1),2)
+                    if (limesh(melink(k, dsme(i)),2) == 0) then
+                        if (limesh(melink(mod(k+1,4)+1, dsme(i)),1) == dsme(i)) then
+                            ds_upme(dsme(i)) = limesh(melink(mod(k+1,4)+1, dsme(i)),2)
                         else
-                            ds_upme(dsme(i)) = limesh(melink(dsme(i), mod(k+1,4)+1),1)
+                            ds_upme(dsme(i)) = limesh(melink(mod(k+1,4)+1, dsme(i)),1)
                         endif
                         !write(*,*) dsme(i) , '-' , dsupper(dsme(i))
                     endif

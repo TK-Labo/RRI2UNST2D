@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.5.1] - 2026-04-30
+### Fixed
+- (Common to UNST_***.f90) Optimized column-major array access for some variables.
+- (UNST_Read.f90) Corrected part of the processing settings for the RRI->UNST2D connection method (mesh specification)
+- (UNST_Initial.f90) Corrected an error in the edge length calculation formula
+- (UNST_Sub.f90) Corrected an error in the positive/negative sign of vegetation resistance (trees)
+
+### Added
+- Under Development
+  - (Common to UNST_***.f90) Described a template for vegetation resistance considering lodging
+
 ## [1.0.5] - 2025-12-31
 ### Added
 - Added change log files (CHANGELOG_ja.md / CHANGELOG_en.md)
