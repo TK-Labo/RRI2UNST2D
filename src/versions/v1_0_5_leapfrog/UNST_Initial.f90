@@ -16,10 +16,7 @@ subroutine unst_initiald(dir, nx, ny)
     ! Initialize time param
     !-----------------------
     unsttime = 0.0d0
-    disk_flag = .false.
-    disp_flag = .false.
-    next_disk_t = 0.0d0
-    next_disp_t = 0.0d0
+    mstep = 0
 
     !---------------------
     ! Initialize variable
@@ -46,12 +43,10 @@ subroutine unst_initiald(dir, nx, ny)
     !$omp parallel do default(shared),private(me, k, k2)
     do me = 1, mesh
         unsth(me) = 0.0d0
-        unsth_n(me) = 0.0d0
         if (dsmesh==1) then
             if (ds_inf(me)==2) unsth(me) = ds_wl(me,1)
         endif
         ho(me) = unsth(me)
-        unsth_n(me) = unsth(me)
         hmax(me) = unsth(me)
         qr_sum(me) = unsth(me) * smesh(me)  ! fix  v.1.0.5
         rnof(me) = 1.00d0
@@ -80,8 +75,6 @@ subroutine unst_initiald(dir, nx, ny)
     vno = 0.0d0
     lhan = 0
     lhano = 0
-    um_n = 0.0d0
-    vn_n = 0.0d0
 
     ! shape param
     !$omp parallel do default(shared),private(li, mesh_dx, mesh_dy)

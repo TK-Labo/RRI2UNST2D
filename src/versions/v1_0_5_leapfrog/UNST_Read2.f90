@@ -153,7 +153,6 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     allocate(depth_1d(ndan))
     allocate(rbed_1d(ndan), rzmax_1d(ndan))
     allocate(dan_record(ndan))
-    allocate(q_n_1d(ndan), a_n_1d(ndan))
     ! - - -
     allocate(n_tbl(ndan))
     ! - - -
@@ -723,8 +722,6 @@ subroutine d1rivinitiald(dt2)
     pumpq_1d = 0.0d0
     sluiceq_1d = 0.0d0
     up_q_1d = 0.0d0
-    q_n_1d = 0.0d0
-    a_n_1d = 0.0d0
 
     open(newunit=finit_unit, file = finit, action = 'read')
     ii = 1

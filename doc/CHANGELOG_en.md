@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.5.1] - 2026-04-30
+## [1.0.5.1] - 2026-07-07
 ### Fixed
 - (Common to UNST_***.f90) Optimized column-major array access for some variables.
 - (UNST_Read.f90) Corrected part of the processing settings for the RRI->UNST2D connection method (mesh specification)

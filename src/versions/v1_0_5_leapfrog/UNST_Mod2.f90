@@ -41,7 +41,6 @@ real(8), allocatable :: vv_1d(:)           ! velocity
 real(8), allocatable :: q_1d(:), qo_1d(:)  ! volume
 real(8), allocatable :: a_1d(:), r_1d(:)   ! area, radius
 real(8), allocatable :: b_1d(:), rn_1d(:)  ! width, roughness
-real(8), allocatable :: q_n_1d(:), a_n_1d(:)  ! RK
 
 real(8), allocatable :: h_1dmax(:), vv_1dmax(:)  ! max h, vv
 

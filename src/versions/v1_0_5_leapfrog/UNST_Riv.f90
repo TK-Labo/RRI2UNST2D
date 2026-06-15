@@ -7,14 +7,15 @@
 !================================
 !--------------------------------------------------------------------------
 ! 1D Model 主な変数/1D Model Main variable
-!   h_1d(ndan): 断面水位/cross-sectional depth of a river
-!   ho_1d(ndan): 断面水位/cross-sectional depth of a river
+!   leap-flogに合わせてn -> n+2 で表記
+!   h_1d(ndan): 断面水位(t=n+2)/cross-sectional depth of a river(t=n+2)
+!   ho_1d(ndan): 断面水位(t=n)/cross-sectional depth of a river(t=n)
 !   a_1d(ndan): 断面河積/cross-sectional area of a river
 !   r_1d(ndan): 断面径深/cross-sectional hydraulic radius of a river
 !   rn_1d(ndan): 断面粗度/cross-sectional roughness of a river
-!   vv_1d(ndan): 流速/cross-sectional velocity of a river
-!   q_1d(ndan): 流量/cross-sectional flow rate of a river
-!   qo_1d(ndan): 流量/cross-sectional flow rate of a river
+!   vv_1d(ndan): 断面流速/cross-sectional velocity of a river
+!   q_1d(ndan): 断面流量/cross-sectional flow rate of a river(t=n+2)
+!   qo_1d(ndan): 断面流量/cross-sectional flow rate of a river(t=n)
 !   subq_all(ndan): 断面横流入量/cross-sectional sub flow rate of a river
 !--------------------------------------------------------------------------
 

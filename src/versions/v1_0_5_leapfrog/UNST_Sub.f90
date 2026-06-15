@@ -365,6 +365,7 @@ end subroutine flux
 !   sumf: meshの流出量(m^3)/mesh out-q
 !   tmp_wl: 水位(dsmesh,dsinf=2)/water level(dsmesh,dsinf=2)
 !   unst_tmp_error: 水深計算における数値誤差/numerical errors in water depth calculations
+!   unst_tmp_ds: 排水処理における排水量/wastewater volume in wastewater treatment
 !   rr: meshの降水量(mm)/mesh rainfall(mm)
 !   q(mesh): meshの流量/mesh q
 !-------------------------------------------------------------------------------------
@@ -374,13 +375,14 @@ subroutine suisin
     real(8) f, sumf, rr    !Equation of Continuity
     real(8), allocatable :: q(:)
     real(8) tmp_wl
-    real(8) unst_tmp_error
+    real(8) unst_tmp_error, unst_tmp_ds
     integer meli  ! v.1.0.5.1
 
     allocate(q(mesh))
 
     if (paddydam==1) paddy_q = 0.0d0
     unst_tmp_error = 0.0d0
+    unst_tmp_ds = 0.0d0
 
     it = int(unsttime/dtrain) + 1
 
@@ -391,7 +393,7 @@ subroutine suisin
 
     !$omp parallel do default(shared) &
     !$omp private(f,sumf,k,me,ilt,nn,tmp_wl,rr,meli) &
-    !$omp reduction(+:unst_tmp_error)
+    !$omp reduction(+:unst_tmp_error, unst_tmp_ds)
     do me = 1, mesh
         if(inf(me) == 0) cycle
         if(dsmesh==1) then
@@ -433,10 +435,14 @@ subroutine suisin
         ! Update Depth
         unsth(me) = ho(me) + q(me)/( (1.0d0-lambda(me)) * smesh(me) )  ! fixed
         if(paddydam==1 .and. inf(me) == 71) then
-            if(unsth(me) >= etp(paddyid(me))*dt2) then
-                unsth(me) = unsth(me) - etp(paddyid(me)) * dt2
-                q(me) = q(me) - (etp(paddyid(me)) * dt2 * smesh(me))
+            if(unsth(me) >= etp(paddyid(me))) then
+                unsth(me) = unsth(me) - etp(paddyid(me))
+                q(me) = q(me) - (etp(paddyid(me)) * smesh(me))
             endif
+        endif
+        if(baseo(me)==-9999.0d0) then
+            unst_tmp_ds = unst_tmp_ds + unsth(me) * smesh(me)  ! v.1.0.5
+            unsth(me) = 0.0d0
         endif
 
         ! 浸透モデル
@@ -449,10 +455,10 @@ subroutine suisin
         ! added by k.yamamura
         if(drainarea==1) then
         if(inf_dr(me)>0) then
-                if(unsth(me)*smesh(me)<=vol_dr(me)*dt2) then
+                if(unsth(me)*smesh(me)<=vol_dr(me)) then
                     vol(me) = 0.0d0
                 else
-                    vol(me) = vol_dr(me)*dt2
+                    vol(me) = vol_dr(me)
                     unsth(me) = (unsth(me)*smesh(me) - vol(me)) / smesh(me)
                 endif
                 !Time-delayed discharge to the outlet point
@@ -494,7 +500,8 @@ subroutine suisin
     enddo
     !$omp end parallel do
 
-    unst_error_v = unst_error_v + unst_tmp_error*0.5d0  ! v.1.0.5
+    unst_error_v = unst_error_v + unst_tmp_error  ! v.1.0.5
+    unst_dis_v = unst_dis_v + unst_tmp_ds  ! v.1.0.5
 
     ! calculate paddy field dam outflow
     if (paddydam==1) call paddyflow
@@ -679,66 +686,5 @@ subroutine unst_infilt(me)
     if( unsth(me) .le. 0.d0 ) unsth(me) = 0.d0
 
 end subroutine unst_infilt
-
-subroutine limit_front
-    integer me, li, k
-    ! flow flux(velocity) ahead of the flood inundation front set
-    !$omp parallel do default(shared),private(me,li,k)
-    do me = 1, mesh
-        if(unsth(me) >= th) cycle
-        do k = 1, ko(me)
-            li = melink(k, me)
-            if((um(li)*node_dy(k, me) - vn(li)*node_dx(k, me)) > 0.0d0) then
-                um(li) = 0.0d0
-                vn(li) = 0.0d0
-            endif
-        enddo
-    enddo
-    !$omp end parallel do
-end subroutine limit_front
-
-subroutine unstdt_adapt(t)
-    real(8), intent(in) :: t
-    integer me, k, li
-    real(8) tmp_sp, tmp_unstdt, tmp_mindt
-
-    tmp_mindt = unstdt
-    !$omp parallel do default(shared), private(me, k, li, tmp_sp, tmp_unstdt), reduction(min: tmp_mindt) 
-    do me = 1, mesh
-        if(unsth(me)>th) then
-            tmp_sp = 1.0d-4
-            do k = 1, ko(me)
-                li = melink(k, me)
-                if(hl(li)>th) tmp_sp = max(tmp_sp, (sqrt(uu(li)**2 + vv(li)**2) + sqrt(gg*hl(li))))
-            enddo
-            tmp_unstdt = sqrt(smesh(me))/tmp_sp
-            tmp_mindt = min(tmp_mindt, tmp_unstdt)
-        endif
-    enddo
-    !$omp end parallel do
-
-    dt2 = max(min_unstdt, tmp_mindt*unst_cfl)
-    dt2 = min(unstdt, dt2)
-    dispdt = dt2
-
-    if(unsttime+dt2>t) dt2 = max(t - unsttime, 1.0d-6)
-
-    if(unsttime+dt2>=next_disp_t .and. t>=next_disp_t) then
-        dt2 = max(next_disp_t - unsttime, 1.0d-6)
-        disp_flag = .true.
-        next_disp_t = next_disp_t + dpout
-    else
-        disp_flag = .false.
-    endif
-    if(unsttime+dt2>=next_disk_t .and. t>=next_disk_t) then
-        dt2 = max(next_disk_t - unsttime, 1.0d-6)
-        disk_flag = .true.
-        next_disk_t = next_disk_t + dkout
-    else
-        disk_flag = .false.
-    endif
-
-end subroutine
-
 
 end module unst_cal_sub
