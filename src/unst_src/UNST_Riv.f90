@@ -8,13 +8,11 @@
 !--------------------------------------------------------------------------
 ! 1D Model 主な変数/1D Model Main variable
 !   h_1d(ndan): 断面水位/cross-sectional depth of a river
-!   ho_1d(ndan): 断面水位/cross-sectional depth of a river
 !   a_1d(ndan): 断面河積/cross-sectional area of a river
 !   r_1d(ndan): 断面径深/cross-sectional hydraulic radius of a river
 !   rn_1d(ndan): 断面粗度/cross-sectional roughness of a river
 !   vv_1d(ndan): 流速/cross-sectional velocity of a river
 !   q_1d(ndan): 流量/cross-sectional flow rate of a river
-!   qo_1d(ndan): 流量/cross-sectional flow rate of a river
 !   subq_all(ndan): 断面横流入量/cross-sectional sub flow rate of a river
 !--------------------------------------------------------------------------
 
@@ -33,20 +31,19 @@ subroutine fractional_step_robust
     integer :: n, i
     real(8) :: term_adv, term_pres, term_fric_coef
     real(8) :: tmp_q, current_h, current_a, current_r, current_rn
+    real(8) :: tmp_v
     real(8) :: dh_dx
+    real(8), allocatable :: current_q(:)
 
-    !$omp parallel do default(shared) &
-    !$omp private(n, i, term_adv, term_pres, term_fric_coef, tmp_q) &
-    !$omp private(current_h, current_a, current_r, current_rn, dh_dx)
+    allocate(current_q(ndan))
+    current_q = q_1d ! copy
+
+    !!$omp parallel do default(shared) &
+    !!$omp private(n, i, term_adv, term_pres, term_fric_coef, tmp_q, tmp_v) &
+    !!$omp private(current_h, current_a, current_r, current_rn, dh_dx)
     do n = 2, ndan
-        if((ntype_1d(n)==1) .or. (ntype_1d(n)==-2) .or. &
+        if((ntype_1d(n)==1) .or. (ntype_1d(n)==-2) .or. (ntype_1d(n)==-4) .or.&
             (ntype_1d(n)==3) .or. (ntype_1d(n)==100)) cycle 
-        ! --- dry ---
-        if (a_1d(n) < tha_1d .or. h_1d(n) - rbed_1d(n) <= thd_1d) then
-            q_1d(n) = 0.0d0
-            vv_1d(n) = 0.0d0
-            cycle
-        endif
 
         ! set local
         current_a  = a_1d(n)
@@ -56,26 +53,29 @@ subroutine fractional_step_robust
 
         ! --- Step 1: 移流項/Advection ---
         term_adv = 0.0d0
-        if(vv_1d(n) > 0.0d0) then
-            term_adv = (vv_1d(n) * (q_1d(n) - q_1d(n-1)) + &
-                        q_1d(n) * (vv_1d(n) - vv_1d(n-1))    ) / dx_1d(n)
-        elseif(vv_1d(n) < 0.0d0) then
-            if(ntype_1d(n)/=-1) then
-                term_adv = (vv_1d(n) * (q_1d(n+1) - q_1d(n)) + &
-                            q_1d(n) * (vv_1d(n+1) - vv_1d(n))   ) / dx_1d(n+1)
-            else
-                ! upstream
-                do i = 1, nbound_1d
-                    if(n == b_idx_1d(i)) then
-                        term_adv = (vv_1d(n) * (up_q_1d(i) - q_1d(n))) / dx_1d(n)
-                        exit
-                    endif
-                enddo
+        if (current_a > tha_1d) then
+            if(vv_1d(n) > 0.0d0) then
+                term_adv = (vv_1d(n) * (current_q(n) - current_q(n-1)) + &
+                            current_q(n) * (vv_1d(n) - vv_1d(n-1))    ) / dx_1d(n)
+            elseif(vv_1d(n) < 0.0d0) then
+                if(ntype_1d(n)/=-1 .and. ntype_1d(n)/=-100) then
+                    term_adv = (vv_1d(n) * (current_q(n+1) - current_q(n)) + &
+                                current_q(n) * (vv_1d(n+1) - vv_1d(n))   ) / dx_1d(n+1)
+                else
+                    ! upstream
+                    do i = 1, nbound_1d
+                        if(n == b_idx_1d(i)) then
+                            term_adv = (vv_1d(n) * (up_q_1d(i) - current_q(n))) / dx_1d(n)
+                            exit
+                        endif
+                    enddo
+                endif
             endif
         endif
 
         ! q*
-        tmp_q = q_1d(n) - term_adv * rivdt
+        tmp_q = current_q(n) - term_adv * rivdt
+        tmp_v = tmp_q/current_a ! fixed v.1.0.6
 
         ! --- Step 2: 圧力項/Pressure & 摩擦項/Friction ---
         term_pres = 0.0d0
@@ -88,8 +88,8 @@ subroutine fractional_step_robust
 
             ! 2. Friction Semi-Implicit           
             ! K
-            if (abs(vv_1d(n)) > 1.0d-10) then
-                 term_fric_coef = rivgg * (current_rn**2) * abs(vv_1d(n)) / (current_r**(4.0d0/3.0d0))
+            if (abs(tmp_v) > 1.0d-10) then  ! fixed v.1.0.6
+                 term_fric_coef = rivgg * (current_rn**2) * abs(tmp_v) / (current_r**(4.0d0/3.0d0))  ! fixed v.1.0.6
             else
                  term_fric_coef = 0.0d0
             endif
@@ -101,7 +101,9 @@ subroutine fractional_step_robust
         endif
 
     end do
-    !$omp end parallel do
+    !!$omp end parallel do
+
+    deallocate(current_q)
 
 end subroutine fractional_step_robust
 
@@ -124,17 +126,17 @@ subroutine sub_flow_1d
     integer :: n, i
     integer :: ups_d1, cnt_d1, sub_d1, main_d1, dns_d1  ! cross section id
     real(8) :: term_adv, term_pres, term_fric_coef
-    real(8) :: tmp_q
+    real(8) :: tmp_q, tmp_v
     real(8) :: coef
 
     ! sum sub qin
-    !$omp parallel do default(shared), private(n)
+    !!$omp parallel do default(shared), private(n)
     do n = 1, ndan
         subq_all(n) = subq_all(n) + &
-                      (tributaryq_1d(n) + breakq_1d(n) + &
+                      (tributaryq_1d(n) + breakq_1d(n) + weirq_1d(n) + &
                        pumpq_1d(n) + sluiceq_1d(n)) / rivdt
     enddo
-    !$omp end parallel do
+    !!$omp end parallel do
 
     ! Reset sub qin ---
     tributaryq_1d = 0.0d0
@@ -161,6 +163,7 @@ subroutine sub_flow_1d
             term_adv = 0.0d0
             term_pres = 0.0d0
             term_fric_coef = 0.0d0
+            tmp_v = 0.0d0  ! fixed v.1.0.6
             ! --------------
 
             ! set cross section id ---
@@ -175,7 +178,7 @@ subroutine sub_flow_1d
                 cnt_d1 = subflow_input(1,i)  ! sub (center)
                 sub_d1 = subflow_input(1,i)  ! sub
                 main_d1 = subflow_input(2,i)  ! main
-                dns_d1 = subflow_input(2,i)  ! main (downstream)
+                dns_d1 = subflow_input(2,i) -1  ! main (downstream)
                 coef = -1.0d0
             elseif(ntype_1d(subflow_input(1,i))==-3) then
                 ! distributary
@@ -202,14 +205,15 @@ subroutine sub_flow_1d
             endif
         
             tmp_q = q_1d(sub_d1) - term_adv * rivdt
+            if(a_1d(cnt_d1)>0.0d0) tmp_v = tmp_q/a_1d(cnt_d1)  ! fixed v.1.0.6
             ! ----------
         
             ! Step 2 ---
             if((a_1d(cnt_d1) >= tha2_1d) .and. (r_1d(cnt_d1) > 1.0d-6)) then
                 term_pres = rivgg * a_1d(cnt_d1) * (h_1d(cnt_d1) - h_1d(dns_d1)) / dx_1d(sub_d1)
-                if(abs(vv_1d(sub_d1)) > 1.0d-10) then
+                if(abs(tmp_v) > 1.0d-10) then
                     term_fric_coef = rivgg * (rn_1d(cnt_d1)**2) * &
-                                        abs(vv_1d(sub_d1)) / (r_1d(cnt_d1)**(4.d0/3.d0))
+                                        abs(tmp_v) / (r_1d(cnt_d1)**(4.d0/3.d0))
                 endif
                 q_1d(sub_d1) = (tmp_q - term_pres * rivdt) / (1.0d0 + term_fric_coef * rivdt)
             else
@@ -232,29 +236,14 @@ subroutine continuous_1d
     integer n, i
     real(8) :: tmp_a
 
-    !$omp parallel do default(shared), private(n, i, tmp_a)
+    !!$omp parallel do default(shared), private(n, i, tmp_a)
     do n = 1, ndan
         tmp_a = 0.0d0
-        if(ntype_1d(n)/=-1) then
+        if(ntype_1d(n)>=0) then
             ! else upstream
+            if(ntype_1d(n)==100 .or. ntype_1d(n)==1) cycle
             tmp_a = a_1d(n) - (q_1d(n+1) - q_1d(n) - subq_all(n)) * rivdt/((dx_1d(n)+dx_1d(n+1))*0.5d0)
-        elseif(ntype_1d(n)==100) then
-            ! downstream(connect 1d-2d)
-            if(a_1d(n) > tha_1d) then
-                vv_1d(n) = q_1d(n) / a_1d(n)
-            else
-                vv_1d(n) = 0.0d0
-            endif
-            cycle
-        elseif(ntype_1d(n)==1) then
-            ! downstream(nomal)
-            if(a_1d(n) > tha_1d) then
-                vv_1d(n) = q_1d(n) / a_1d(n)
-            else
-                vv_1d(n) = 0.0d0
-            endif
-            cycle
-        else
+        elseif(ntype_1d(n)==-1 .or. ntype_1d(n)==-100) then
             ! upstream (boundary-q)
             do i = 1, nbound_1d
                 if(n == b_idx_1d(i)) then
@@ -262,6 +251,8 @@ subroutine continuous_1d
                     exit
                 endif
             enddo
+        elseif(ntype_1d(n)==-2 .or. ntype_1d(n)==-4) then
+            tmp_a = a_1d(n) - (q_1d(n+1) - q_1d(n)) * rivdt/((dx_1d(n)+dx_1d(n+1))*0.5d0)
         endif
 
         if(tmp_a >= tha_1d) then
@@ -270,7 +261,31 @@ subroutine continuous_1d
             a_1d(n) = tha_1d
         endif
 
-        call interp_a_1d(n)        
+        ! replace_1dへ移動 v.1.0.6
+        ! call interp_a_1d(n)        
+
+        ! if(a_1d(n) > tha_1d) then
+        !     vv_1d(n) = q_1d(n) / a_1d(n)
+        ! else
+        !     vv_1d(n) = 0.0d0
+        ! endif
+
+    enddo
+    !!$omp end parallel do
+
+    subq_all = 0.0d0  ! reset
+
+end subroutine continuous_1d
+
+subroutine replace_1d
+    implicit none
+
+    integer :: n
+
+    !!$omp parallel do default(shared), private(n)
+    do n = 1, ndan
+
+        if(ntype_1d(n)/=1 .and. ntype_1d(n)/=100) call interp_a_1d(n)
 
         if(a_1d(n) > tha_1d) then
             vv_1d(n) = q_1d(n) / a_1d(n)
@@ -279,11 +294,9 @@ subroutine continuous_1d
         endif
 
     enddo
-    !$omp end parallel do
+    !!$omp end parallel do
 
-    subq_all = 0.0d0  ! reset
-
-end subroutine continuous_1d
+end subroutine replace_1d
 
 !-------------------------------------
 ! interpolalate
@@ -305,7 +318,7 @@ subroutine interp_a_1d(n)
                   (h_table(n_tbl(n),n) - h_table(n_tbl(n)-1,n)) * coef
         r_1d(n) = r_table(n_tbl(n)-1,n) + &
                   (r_table(n_tbl(n),n) - r_table(n_tbl(n)-1,n)) * coef
-        rn_1d(n) = h_table(n_tbl(n)-1,n) + &
+        rn_1d(n) = rn_table(n_tbl(n)-1,n) + &
                   (rn_table(n_tbl(n),n) - rn_table(n_tbl(n)-1,n)) * coef
         b_1d(n) = b_table(n_tbl(n)-1,n) + &
                   (b_table(n_tbl(n),n) - b_table(n_tbl(n)-1,n)) * coef
@@ -351,7 +364,7 @@ subroutine interp_h_1d(n)
                   (a_table(n_tbl(n),n) - a_table(n_tbl(n)-1,n)) * coef
         r_1d(n) = r_table(n_tbl(n)-1,n) + &
                   (r_table(n_tbl(n),n) - r_table(n_tbl(n)-1,n)) * coef
-        rn_1d(n) = h_table(n_tbl(n)-1,n) + &
+        rn_1d(n) = rn_table(n_tbl(n)-1,n) + &
                   (rn_table(n_tbl(n),n) - rn_table(n_tbl(n)-1,n)) * coef
         b_1d(n) = b_table(n_tbl(n)-1,n) + &
                   (b_table(n_tbl(n),n) - b_table(n_tbl(n)-1,n)) * coef
@@ -391,12 +404,14 @@ subroutine h_bound_1d
     real(8) :: tmp_h
 
     do n = 1, nbound_1d
-        if(ntype_1d(b_idx_1d(n))/=1 .or. b_dt_1d(n)<=0.0d0 .or. b_dome_1d(n)==0) cycle
-        i = int(unsttime_r / b_dt_1d(n)) + 1
-        tmp_h = b_data_1d(i,n) + (unsttime_r - b_dt_1d(n) * dble(i - 1)) / &
-                b_dt_1d(n) * (b_data_1d(i+1,n) - b_data_1d(i,n))
-        h_1d(b_idx_1d(n)) = max(tmp_h, rbed_1d(b_idx_1d(n))+thd_1d)
-        call interp_h_1d(b_idx_1d(n))
+        if(b_dt_1d(n)<=0.0d0) cycle
+        if(ntype_1d(b_idx_1d(n))==1 .or. ntype_1d(b_idx_1d(n))==100) then
+            i = int(unsttime_r / b_dt_1d(n)) + 1
+            tmp_h = b_data_1d(i,n) + (unsttime_r - b_dt_1d(n) * dble(i - 1)) / &
+                    b_dt_1d(n) * (b_data_1d(i+1,n) - b_data_1d(i,n))
+            h_1d(b_idx_1d(n)) = max(tmp_h, rbed_1d(b_idx_1d(n))+thd_1d)
+            call interp_h_1d(b_idx_1d(n))
+        endif
     enddo
     
 end subroutine h_bound_1d
@@ -408,11 +423,13 @@ subroutine q_bound_1d
     real(8) :: tmp_q
 
     do n = 1, nbound_1d
-        if(ntype_1d(b_idx_1d(n))/=-1 .or. b_dt_1d(n)<=0.0d0 .or. ntype_1d(n)==100) cycle
-        i = int(unsttime_r / b_dt_1d(n)) + 1
-        tmp_q = -1.d0 * (b_data_1d(i,n) + (unsttime_r - b_dt_1d(n) * dble(i - 1)) / &
-                b_dt_1d(n) * (b_data_1d(i+1,n) - b_data_1d(i,n)))
-        up_q_1d(n) = min(tmp_q, -0.1d0)
+        if(b_dt_1d(n)<=0.0d0) cycle
+        if(ntype_1d(b_idx_1d(n))==-1 .or. ntype_1d(b_idx_1d(n))==-100) then
+            i = int(unsttime_r / b_dt_1d(n)) + 1
+            tmp_q = -1.d0 * (b_data_1d(i,n) + (unsttime_r - b_dt_1d(n) * dble(i - 1)) / &
+                    b_dt_1d(n) * (b_data_1d(i+1,n) - b_data_1d(i,n)))
+            up_q_1d(n) = min(tmp_q, -0.1d0)
+        endif
     enddo
     
 end subroutine q_bound_1d
@@ -472,9 +489,9 @@ subroutine weir_equation
     weirq_1d = 0.0d0
     weirq_l_1d = 0.0d0
     weirq_r_1d = 0.0d0
-    !$omp parallel do default(shared) &
-    !$omp private(i, n, inlandh, tmp_h1, tmp_h2, h1, h2) &
-    !$omp private(wir_inout, q0, total_out_vol, available_vol, limit_ratio)
+    !!$omp parallel do default(shared) &
+    !!$omp private(i, n, inlandh, tmp_h1, tmp_h2, h1, h2) &
+    !!$omp private(wir_inout, q0, total_out_vol, available_vol, limit_ratio)
     do n = 1, ndan
         ! left levee
         if(ncnct_1d2d(1,n)/=0 .and. w_alpha_1d(1,n) > 0.0d0 .and. bktype_1d(1,n)/=1) then
@@ -561,19 +578,19 @@ subroutine weir_equation
                 endif
             endif
         endif
-        if (ncnct_1d2d(1,n)/=0 .and. cnct_1d2d_idx(1,1,n)/=0) then
-            riv_eq(cnct_1d2d_idx(1,1,n)) = riv_eq(cnct_1d2d_idx(1,1,n)) - weirq_l_1d(n)
+        if (ncnct_1d2d(1,n)/=0) then
+            if(cnct_1d2d_idx(1,1,n)/=0) riv_eq(cnct_1d2d_idx(1,1,n)) = riv_eq(cnct_1d2d_idx(1,1,n)) - weirq_l_1d(n)
         endif
-        if ((ncnct_1d2d(2,n)==0 .or. cnct_1d2d_idx(2,1,n)==0)) then
-            riv_eq(cnct_1d2d_idx(2,1,n)) = riv_eq(cnct_1d2d_idx(2,1,n)) - weirq_r_1d(n)
+        if ((ncnct_1d2d(2,n)/=0)) then
+            if(cnct_1d2d_idx(2,1,n)/=0) riv_eq(cnct_1d2d_idx(2,1,n)) = riv_eq(cnct_1d2d_idx(2,1,n)) - weirq_r_1d(n)
         endif
     enddo
-    !$omp end parallel do
+    !!$omp end parallel do
     
 end subroutine weir_equation
 
 ! ----------------------------------------------
-!  inflow 1D -> 2D
+!  inflow 2D -> 1D
 ! ----------------------------------------------
 subroutine calc_2d_to_1d_inflow
     implicit none
@@ -583,7 +600,7 @@ subroutine calc_2d_to_1d_inflow
     
     do n = 1, nbound_1d
         ii = b_idx_1d(n)
-        if(ntype_1d(ii)/=-1) cycle  ! 上流端のみ
+        if(ntype_1d(ii)/=-1) cycle
         
         me_2d = b_upme_1d(n)
         if(me_2d == 0) cycle
@@ -701,57 +718,86 @@ end subroutine calc_1d_to_2d_outflow
 
 end module unst_cnct_1d2d
 
-module unst_1d_main
+module unst_d1_main
     use d1riv_globals_mod
     use d1riv_cal_sub
     use unst_cnct_1d2d
+    implicit none
     
 contains    
+
+subroutine unstdt_adapt_1d
+    integer n
+    real(8) tmph, tmp_sp, tmp_unstdt, tmp_mindt
+
+    tmp_mindt = d1maxdt
+    tmp_unstdt = rivdt
+    !!$omp parallel do default(shared), private(n, tmph, tmp_sp, tmp_unstdt), reduction(min: tmp_mindt) 
+    do n = 2, ndan
+        tmph = h_1d(n)-h_table(1,n)
+        if(tmph>thd_1d) then
+            tmp_sp = 1.0d-4
+            tmp_sp = max(tmp_sp, (abs(vv_1d(n)) + sqrt(gg*tmph)))
+            tmp_mindt = min(dx_1d(n), dx_1d(n-1))/tmp_sp
+        endif
+    enddo
+    !!$omp end parallel do
+
+    dt2 = max(tmp_mindt*d1_cfl, min_1ddt)
+
+end subroutine unstdt_adapt_1d
 
 !=====================================
 ! Main
 !=====================================
-subroutine d1riv_main(unsttime)
+subroutine d1riv_main(step)
     implicit none
-    real(8), intent(in) :: unsttime
+    integer, intent(in) :: step
 
-    unsttime_r = unsttime
+    if(step == 1) then
+        unsttime_r = unsttime
+        rivdt = dt2
+    endif
 
+    call weir_equation
     call h_bound_1d
     call fractional_step_robust
     call sub_flow_1d
     call q_bound_1d
+    if(step==2) q_1d = 0.5d0 * (q_n_1d + q_1d)
     call continuous_1d
-    call weir_equation
+    if(step==2) a_1d = 0.5d0 * (a_n_1d + a_1d)
+    call replace_1d
 
 end subroutine d1riv_main
 
 subroutine d1riv_spinup
     implicit none
-    integer i
+    integer n
 
-    do i = 1, ndan
-        h_1d(i) = ho_1d(i)
-        q_1d(i) = qo_1d(i)
-        call interp_h_1d(i)
+    do n = 1, ndan
+        call interp_h_1d(n)
+        if(a_1d(n) > tha_1d) then
+            vv_1d(n) = q_1d(n) / a_1d(n)
+        else
+            vv_1d(n) = 0.0d0
+        endif
     enddo
-    if (d1_spin_upn>0) then
-        unsttime_r = 0.0d0
-        write(*,*) 'Sipn up 1d river -- ', 0, '/', d1_spin_upn
-        do i = 1, d1_spin_upn
+    if (d1_spin_ups>0.0d0) then
+        write(*,*) 'Sipn up 1d river -- '
+        do while(d1_spin_ups>=unsttime_r+rivdt)
             call h_bound_1d
             call fractional_step_robust
             call sub_flow_1d
             call q_bound_1d
             call continuous_1d
-
-            if(mod(i,spout)==0) then
-                write(*,*) 'Sipn up 1d river -- ', i, '/', d1_spin_upn
-            endif
+            call replace_1d
+            unsttime_r = unsttime_r + rivdt
         enddo
-        write(*,*) '  Sipn up 1d river fin -- ', d1_spin_upn, '/', d1_spin_upn
+        write(*,*) '  Sipn up 1d river fin -- '
     endif
+    unsttime_r = 0.0d0
 
 end subroutine d1riv_spinup
 
-end module unst_1d_main
+end module unst_d1_main

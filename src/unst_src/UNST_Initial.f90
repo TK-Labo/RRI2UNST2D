@@ -4,7 +4,7 @@
 
 subroutine unst_initiald(dir, nx, ny)
     use unst_globals_mod
-    use unst_1d_main
+    use unst_d1_main
     implicit none
     integer, intent(in) :: nx, ny, dir(ny, nx)
     integer me, li, k, k2, j
@@ -18,8 +18,8 @@ subroutine unst_initiald(dir, nx, ny)
     unsttime = 0.0d0
     disk_flag = .false.
     disp_flag = .false.
-    next_disk_t = 0.0d0
-    next_disp_t = 0.0d0
+    next_disk_t = dkout
+    next_disp_t = dpout
 
     !---------------------
     ! Initialize variable
@@ -280,7 +280,5 @@ subroutine unst_initiald(dir, nx, ny)
                 lkyokai_dir(j) = 0  ! >0 河道流入あり, <0 河道流入なし, =0 流入なし
         end select                       
     enddo
-
-    if(d1riv==1) call d1riv_spinup
 
 end subroutine unst_initiald

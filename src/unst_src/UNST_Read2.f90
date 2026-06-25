@@ -12,6 +12,7 @@
 !                   =4:合流(逆流防止樋門あり)本川/tributary(stop back water)-main
 !                   =-4:合流(逆流防止樋門あり)支川/tributary(stop back water)-sub
 !                   =100:下流端(2次元との接続)/downstream(connect-2D)
+!                   =-100:上流端(RRIとの接続)/upstream(connect-RRI)
 ! > ローカル変数/local variable
 !   
 !--------------------------------------------------------------------------------
@@ -21,19 +22,18 @@ module unst_d1riv_read
 
 contains
 
-subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
+subroutine d1rivdat(lasth, dt, mesh, baseo, frivcntl)
     implicit none
-    real(8), intent(in) :: dt2
-    integer, intent(in) :: lasth, mesh
+    integer, intent(in) :: lasth, dt, mesh
     real(8), intent(in) :: baseo(mesh)
     character(len=50), intent(in) :: frivcntl
-    integer idummy, j, i, ios, n, max_nb, nb_data, k, max_ncnct_1d2d
+    integer idummy, j, i, ios, n, nb_data, k, max_ncnct_1d2d
     integer oudan_format
     integer read_count, read_count2, tmp_ndan
     integer xznum
-    real(8) rdummy, rpre_d, rpre_h, rpre_m, rpre_s, d1_spin_ups
+    real(8) rdummy, rpre_d, rpre_h, rpre_m, rpre_s
     real(8) sum_inland_bs_l, sum_inland_bs_r
-    character(len=100) cdummy, line
+    character(len=100) line
     integer, allocatable :: ud_idx_1d(:,:)  ! up-down bound cross section id
     integer, allocatable :: subflow_type(:)  ! type
     integer frivcntl_unit, &
@@ -41,48 +41,69 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     character(len=100) fjudan, foudan, fbound, f1d2d, foudan_table
 
     !=======================
-    ! Step1 : Read cntl.dat
+    ! Step1 : Read cntl.dat  ! change v.1.0.6
     !=======================
     ! input param
     open(newunit=frivcntl_unit, file=frivcntl, action = 'read')
-    read(frivcntl_unit, '(7x, 4f6.1)') cdummy, rpre_d, rpre_h, rpre_m, rpre_s
-    read(frivcntl_unit, '(7x, i11)') spout
-    read(frivcntl_unit, *) ! d1_dt
-    read(frivcntl_unit, '(7x, f11.2)') dz             ! common
+    read(frivcntl_unit, '(7x, 4f6.1)') rpre_d, rpre_h, rpre_m, rpre_s
+    read(frivcntl_unit, '(7x, f11.2)') rivdt  ! common
     read(frivcntl_unit, '(7x, i11)') nriv           ! common
-    read(frivcntl_unit, '(7x, i11)') nsubflow_1d    ! common
     read(frivcntl_unit, *)
-    write(*,*)
-    write(*,*) '== 1d river Parameters =='
-    write(*,'(a19,f10.2,7a,f10.2,7a,f10.2,7a,f10.2,7a)') ' - 1d spinup time:', rpre_d, ' day /', &
-                                    rpre_h, ' hour /', rpre_m, ' min /' , rpre_s, ' sec '
-    write(*,'(a22, i10)') ' - display out  : 1 /', spout
-    write(*,*) 'rivdt (development):'
-    write(*,'(a18,f10.2, a3)') ' - dz pitch     :', dz, '(m)'
-    write(*,'(a18,i5)') ' - num of river :', nriv
-    write(*,'(a18,i5)') ' - num of joint :', nsubflow_1d
-    write(*,*)
+    !---
+
     ! input file path
-    read(frivcntl_unit, '(A)') fjudan  ! common
-    read(frivcntl_unit, *) oudan_format
-    read(frivcntl_unit, '(A)') foudan  ! common
-    read(frivcntl_unit, '(A)') foudan_table  ! common
-    read(frivcntl_unit, '(A)') fbound  ! common
-    read(frivcntl_unit, '(A)') finit   ! common
-    read(frivcntl_unit, '(A)') f1d2d   ! common
+    read(frivcntl_unit, '(A)') fjudan  ! common()
+    read(frivcntl_unit, '(A)') fbound  ! common(boundary condition)
+    read(frivcntl_unit, '(A)') finit   ! common(initialize)
+    read(frivcntl_unit, '(A)') f1d2d   ! common(connect 1d -2d)
     read(frivcntl_unit, *)
     read(frivcntl_unit, *)
-    read(frivcntl_unit, '(A)') fd1out   ! output
-    read(frivcntl_unit, '(A)') fd1mx   ! output
+    !! oudan
+    read(frivcntl_unit, '(7x, i11)') oudan_format
+    if(oudan_format==0) then
+        read(frivcntl_unit, '(7x, f11.2)') dz  ! common(table dz)
+        read(frivcntl_unit, '(A)') foudan  ! common()
+        read(frivcntl_unit, '(A)') foudan_table
+    else
+        read(frivcntl_unit, *)
+        read(frivcntl_unit, '(A)') foudan  ! common()
+        read(frivcntl_unit, *)
+    endif
     read(frivcntl_unit, *)
     read(frivcntl_unit, *)
 
+    read(frivcntl_unit, '(7x, i11)') nsubflow_1d  ! common()
+    if(nsubflow_1d > 0) then
+        allocate(subflow_type(nsubflow_1d))
+        allocate(subflow_input(2,nsubflow_1d))
+        do n = 1, nsubflow_1d
+            read(frivcntl_unit, *, iostat=ios) subflow_type(n), &
+                        subflow_input(1,n), subflow_input(2,n)
+            if(ios/=0) read(frivcntl_unit, *, iostat=ios) subflow_type(n), &
+                                                            subflow_input(1,n)
+        enddo
+    endif
+    read(frivcntl_unit, *)
+    read(frivcntl_unit, *)
+
+    read(frivcntl_unit, '(A)') fd1out   ! output
+    read(frivcntl_unit, '(A)') fd1mx   ! output
+
+    write(*,*)
+    write(*,*) '== 1D river Parameters =='
+    write(*,'(a19,f10.2,7a,f10.2,7a,f10.2,7a,f10.2,7a)') ' - 1d spinup time:', rpre_d, ' day /', &
+                                    rpre_h, ' hour /', rpre_m, ' min /' , rpre_s, ' sec '
+    write(*,'(a18,i5)') ' - num of river :', nriv
+    write(*,'(a18,i5)') ' - num of joint :', nsubflow_1d
+    write(*,*)
     write(*,*) '* 1d River Data *'
     write(*,'(a16, a)') ' - judan      :', fjudan
-    if(oudan_format==0) write(*,'(a16, a)') ' - oudan      :', foudan
-    if(oudan_format==1) write(*,'(a16, a)') ' - oudan      :', foudan_table
+    write(*,'(a16, a)') ' - bound      :', fbound
     write(*,'(a16, a)') ' - init       :', finit
     write(*,'(a16, a)') ' - cntn_1d2d  :', f1d2d
+    write(*,'(a16, a)') ' - oudan      :', foudan
+    if(oudan_format==1) write(*,'(a18,f10.2, a3)') '   - dz pitch   :', dz, '(m)'
+    if(oudan_format==1) write(*,'(a18, a)') '   - oudan      :', foudan_table
     write(*,*)
     write(*,*) '* UNST Output *'
     write(*,'(a16, a)') ' - d1out      :', fd1out
@@ -92,22 +113,12 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     allocate(ud_idx_1d(2,nriv))
     allocate(riv_ndan(nriv))
 
-    if(nsubflow_1d > 0) then
-        allocate(subflow_type(nsubflow_1d))
-        allocate(subflow_input(2,nsubflow_1d))
-        do n = 1, nsubflow_1d
-            read(frivcntl_unit, *) subflow_type(n), &
-                                    subflow_input(1,n), subflow_input(2,n)
-        enddo
-    endif
-
     close(frivcntl_unit)
 
     !============================
     ! Step2 : Set constant param
     !============================
     d1_spin_ups = rpre_d*86400 +  rpre_h*3600 + rpre_m*60 + rpre_s
-    d1_spin_upn = int(d1_spin_ups/dt2)
 
     read_count = 0
     read_count2 = 1
@@ -120,40 +131,41 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     ! open input files
     !------------------
     open(newunit= fjudan_unit, file = fjudan, action = 'read')
-    if(oudan_format==0) then
-        open(newunit= foudan_unit, file = foudan, action = 'read')
-    elseif(oudan_format==1) then
-        open(newunit= foudan_unit, file = foudan_table, action = 'read')
-    endif
     open(newunit= fbound_unit, file = fbound, action = 'read')
     open(newunit= f1d2d_unit, file = f1d2d, action = 'read')
+    if(oudan_format==0) then
+        open(newunit= foudan_unit, file = foudan, action = 'read')
+    else
+        open(newunit= foudan_unit, file = foudan_table, action = 'read')
+    endif
+
 
     !---------------
     ! 01 judan data
     !---------------
     ! -- read --
     tmp_ndan = 0
+    rsetsu_1d = 0
     do i = 1, nriv
         ud_idx_1d(1,i) = tmp_ndan + 1    ! downstream
         read(fjudan_unit, *, iostat=ios) riv_ndan(i)
         tmp_ndan = tmp_ndan + riv_ndan(i)
         ud_idx_1d(2,i) = tmp_ndan  ! upstream
     enddo
-    close(fjudan_unit)
     ndan = tmp_ndan
+    read(fjudan_unit, *) rsetsu_1d
     write(*,*) 'num of cross section - ', ndan
 
     ! -- allocate --
     allocate(ntype_1d(ndan))
     allocate(h_1d(ndan), vv_1d(ndan), q_1d(ndan))
-    allocate(ho_1d(ndan), qo_1d(ndan))
     allocate(h_1dmax(ndan), vv_1dmax(ndan))
     allocate(kp_1d(ndan), dx_1d(ndan))
     allocate(a_1d(ndan), r_1d(ndan), b_1d(ndan), rn_1d(ndan))
     allocate(depth_1d(ndan))
     allocate(rbed_1d(ndan), rzmax_1d(ndan))
     allocate(dan_record(ndan))
-    allocate(q_n_1d(ndan), a_n_1d(ndan))
+    allocate(q_n_1d(ndan), a_n_1d(ndan))  ! RK
     ! - - -
     allocate(n_tbl(ndan))
     ! - - -
@@ -172,42 +184,32 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     bktype_1d = 0
     ! ------------
 
-    ! set upstream-downstream id
-    ntype_1d = 0
-    i = 1
-    do n = 1, ndan
-        if(n==ud_idx_1d(1,i)) then
-            ntype_1d(n) = 1  ! default bound-h
-        elseif(n==ud_idx_1d(2,i)) then
-            ntype_1d(n) = -1  ! default bound-q
-            i = i + 1  ! next river
-        endif
-    enddo
+    ! set connect type
+    ntype_1d = 0  ! initialize
+    ntype_1d(ud_idx_1d(1,:)) = 1  ! default bound-h
+    ntype_1d(ud_idx_1d(2,:)) = -1  ! default bound-q
 
     ! update subflow id
     if(nsubflow_1d > 0) then
         do n = 1, nsubflow_1d
-            if(subflow_type(n)==0) then
-                ! downstream -> 2d
-                ntype_1d(subflow_input(1,n)) = 100
-                cycle
-            endif
             select case(subflow_type(n))
-            case (1)  ! tributary
+            case (100)  ! downstream -> 2d
+                ntype_1d(subflow_input(1,n)) = 100
+            case (1)  ! tributary (sub(-2) -> main(2))
                 if(ntype_1d(subflow_input(2,n)) /= -1) then
                     ntype_1d(subflow_input(1,n)) = -2  ! sub river
                     ntype_1d(subflow_input(2,n)) = 2  ! main river
                 else
                     write(*,*) ' UNST2D - WARNING : subflow id ', n, ' - subflow type is invaild value, not subflow applyed.'
                 endif
-            case (2)  ! distributary
+            case (2)  ! distributary  (main(-3) -> sub(3))
                 if(ntype_1d(subflow_input(1,n)) /= 1) then
                     ntype_1d(subflow_input(1,n)) = -3  ! main river
                     ntype_1d(subflow_input(2,n)) = 3  ! sub river
                 else
                     write(*,*) ' UNST2D - WARNING : subflow id ', n, ' - subflow type is invaild value, not subflow applyed.'
                 endif
-            case (3)  ! tributary sluice(stop back water)
+            case (3)  ! tributary sluice(stop back water sub(-4) -> main(4))
                 write(*,*) ' UNST2D - WARNING : subflow id ', n, ' - subflow type is development, Comming soon...'
                 if(ntype_1d(subflow_input(2,n)) /= -1) then
                     ntype_1d(subflow_input(1,n)) = -4  ! sub river
@@ -217,6 +219,8 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
                 endif
             case (4)  ! pump
                 write(*,*) ' UNST2D - WARNING : subflow id ', n, ' - subflow type is development.'
+            case (-100)  ! RRI-upstream (only RRI-UNST2D)  add v.1.0.6
+                ntype_1d(subflow_input(2,n)) = -100
             case default
                 write(*,*) ' UNST2D - WARNING : subflow id ', n, ' - subflow type is invaild value, not subflow applyed.'
             end select
@@ -247,29 +251,25 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
         ! -- allocate --
         allocate(dan_x(xznum,ndan), dan_z(xznum,ndan), dan_rn(xznum,ndan))
 
-        dan_rn = 0.0d0
+        dan_rn = 0.030d0
         rbed_1d = 9999.d0
         rzmax_1d = -9999.0d0
         n_tbl = 0
         max_tbl = 0
         do n = 1, ndan
-            read(foudan_unit,*) 
+            read(foudan_unit,*)  ! skip header
             do i = 1, dan_record(n)
                 read(foudan_unit, '(A)') line
                 line = trim(adjustl(line))
                 call read_oudan_data(line, dan_x(i,n), dan_z(i,n), dan_rn(i,n))
                 rbed_1d(n) = min(rbed_1d(n), dan_z(i,n))
                 rzmax_1d(n) = max(rzmax_1d(n), dan_z(i,n))
-                if(i==1) crown_1d(1,n) = dan_z(i,n)  ! left levee
-                if(i==dan_record(n)) crown_1d(2,n) = dan_z(i,n) ! right levee
             enddo
+            crown_1d(1,n) = dan_z(1,n)  ! left levee
+            crown_1d(2,n) = dan_z(dan_record(n),n) ! right levee
             n_tbl(n) = int((rzmax_1d(n)-rbed_1d(n))/dz)+1
             max_tbl = max(max_tbl, n_tbl(n))
         enddo
-        if(all(dan_rn==0.0d0)) then
-            dan_rn = 0.030d0
-            write(*,*) 'Not Select roughness, auto set 0.030.'
-        endif
 
         call d1riv_table(foudan_table)
     
@@ -295,32 +295,30 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     max_nb = 0
     do n = 1, ndan
         select case(ntype_1d(n))
-        case (0)
-            cycle
-        case (-1, 1, 100)
+        case (-1, 1, -100, 100)
             nbound_1d = nbound_1d + 1
         case default
-            cycle  ! development
+            cycle
         end select
     enddo
 
     allocate(b_dt_1d(nbound_1d))
 
-    b_dt_1d = dble(lasth) * 3600
-    read(fbound_unit,*)
+    b_dt_1d = dble(lasth) * 3600.d0  ! one step
     do n = 1, nbound_1d
         read(fbound_unit, '(A)', iostat=ios) line
         if(ios/=0) exit
         line = trim(adjustl(line))  ! line clean
         read(line, *) idummy, nb_data
         read(fbound_unit,*)
-        max_nb = max(max_nb, nb_data+1)
-        if(nb_data>1) b_dt_1d(n) = dble(lasth) * 3600 / dble(nb_data)
+        max_nb = max(max_nb, nb_data)
     enddo
     rewind(fbound_unit)
 
+    if(any(ntype_1d==-100) .or. any(ntype_1d==100)) max_nb = max(lasth * 3600 / dt, max_nb)
+
     allocate(b_idx_1d(nbound_1d))
-    allocate(b_data_1d(max_nb, nbound_1d))
+    allocate(b_data_1d(max_nb+1, nbound_1d))
     allocate(up_q_1d(nbound_1d), up_h_1d(nbound_1d))
     allocate(b_upme_1d(nbound_1d), b_dome_1d(nbound_1d))
 
@@ -328,28 +326,30 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     b_data_1d = 0.0d0
     b_upme_1d = 0
     b_dome_1d = 0
-    read(fbound_unit,*)
     do n = 1, nbound_1d
         read(fbound_unit,*) b_idx_1d(n), nb_data
         select case(ntype_1d(b_idx_1d(n)))
         case(-1, 1, 100)
             if(nb_data>0) then
+                if(nb_data>1) b_dt_1d(n) = dble(lasth) * 3600.d0 / dble(nb_data)  ! set time
                 read(fbound_unit,*) (b_data_1d(i,n), i=1, nb_data)
             else
                 nb_data = 1
-                b_dt_1d(n) = dble(lasth) * 3600
                 if(ntype_1d(b_idx_1d(n)) == -1) then
                     read(fbound_unit, *) b_upme_1d(n)
                     b_data_1d(1,n) = 0.10d0
-                elseif(ntype_1d(b_idx_1d(n)) == 1) then
+                elseif(ntype_1d(b_idx_1d(n))==1 .or. ntype_1d(b_idx_1d(n))==100) then
                     read(fbound_unit, *) b_dome_1d(n)
                     b_data_1d(1,n) = rbed_1d(b_idx_1d(n)) + thd_1d                    
                 endif
             endif
-            b_data_1d(nb_data+1,n) = b_data_1d(nb_data,n)
+        case(-100)
+            read(fbound_unit, *)
+            b_data_1d(1,n) = 0.10d0
         case default  ! development
             write(*,*) ' UNST2D - WARNING : BOUNDARY DATA - id', n, ' - data num is invaild value'
         end select
+        b_data_1d(nb_data+1,n) = b_data_1d(nb_data,n)
     enddo
     close(fbound_unit)
 
@@ -411,9 +411,21 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
         enddo
     else
         write(*,*) "No Connect 1d-2d"
+        allocate(cnct_1d2d_idx(1,1,1))
     endif
 
     close(f1d2d_unit)
+
+    if(rsetsu_1d==1 .or. any(ntype_1d==-100)) then
+        read(fjudan_unit, *)
+        allocate(rsetsu_i_1d(ndan), rsetsu_j_1d(ndan))
+        rsetsu_i_1d = 0
+        rsetsu_j_1d = 0
+        do n = 1, ndan
+            read(fjudan_unit, *) rsetsu_i_1d(n), rsetsu_j_1d(n)
+        enddo
+    endif
+    close(fjudan_unit)
 
 end subroutine d1rivdat
 
@@ -636,41 +648,36 @@ subroutine read_oudan_header(line, kp, r)
     real(8), intent(out) :: kp
 
     integer :: i
-    integer :: start, tmp_idx
-    character(len=100) :: tmp_value
+    integer :: j, tmp_idx
+    character(len=100), allocatable:: tmp_value(:)
+
+    allocate(tmp_value(16))
 
     kp = 0.0d0  ! kp
     r = 0
 
-    start = 1
-    do i = 1, 16
-        ! comma index set
-        tmp_idx = index(line(start:),',')
-        if(tmp_idx==0) then
-            ! last data
-            tmp_value = line(start:)
+    i = 0
+    j = 1
+    do while (i < 16)
+        i = i + 1
+        tmp_idx = index(line(j:), ',')
+        if (tmp_idx == 0) then  ! 最後のデータ
+            tmp_value(i) = line(j:)
+            exit
         else
-            ! clip data
-            tmp_value = line(start:start+tmp_idx-2)
-            tmp_idx = start + tmp_idx -1  ! update
+            tmp_value(i) = line(j:j+tmp_idx-2)
+            j = j + tmp_idx  ! ← ここを修正（次のカンマの次の文字へ）
         endif
-        tmp_value = adjustl(trim(tmp_value)) ! clean
-        ! read data
-        if(len_trim(tmp_value) /= 0) then
-            if(i==1) then
-                ! kp (distance from downstream crossection(km))
-                read(tmp_value, *) kp
-                kp = kp * 1000
-            elseif(i==7) then
-                ! num of record
-                read(tmp_value, *) r
-                return
-            endif
-        endif
-
-        start = tmp_idx + 1  ! update
     enddo
+
+    ! out: kp
+    if (len_trim(adjustl(tmp_value(1))) /= 0) read(tmp_value(1), *) kp
+    kp = kp * 1000.0d0  ! km -> m
+    ! out: num of point
+    if (len_trim(adjustl(tmp_value(7))) /= 0) read(tmp_value(7), *) r
     
+    deallocate(tmp_value)
+
 end subroutine read_oudan_header
 
 subroutine read_oudan_data(line, xc, zc, r)
@@ -682,31 +689,31 @@ subroutine read_oudan_data(line, xc, zc, r)
 
     xc = 0.0d0  ! x coord
     zc = 0.0d0  ! y coord
-    r = 0.0d0  ! roughness
+    r = 0.030d0  ! roughness
 
     tmp_value = trim(adjustl(line))
     read(tmp_value,*,iostat=ios) idummy, xc, zc, r
     if(ios/=0) then
         read(tmp_value,*,iostat=ios) idummy, xc, zc
-        r = 0.0d0
+        r = 0.030d0
     endif
     
 end subroutine read_oudan_data
 
-subroutine d1rivinitiald(dt2)
+subroutine d1rivinitiald(dt2, unstdt, unst_cfl)
     implicit none
-    real(8), intent(in) :: dt2
+    real(8), intent(in) :: dt2, unstdt, unst_cfl
     integer finit_unit
     integer i, ii, n, idummy, init_type
     real(8) init_depth
     
     rivdt = dt2  ! time delta
+    d1maxdt = unstdt
+    d1_cfl = unst_cfl
 
     h_1d = 0.0d0
-    ho_1d = 0.0d0
     vv_1d = 0.0d0
     q_1d = 0.0d0
-    qo_1d = 0.0d0
     r_1d = 0.0d0
     a_1d = 0.0d0
     b_1d = 0.0d0
@@ -730,17 +737,16 @@ subroutine d1rivinitiald(dt2)
     ii = 1
     read(finit_unit, *) init_type
     if(init_type==0) then
-        ! only fractional
         do n = 1, nriv
             read(finit_unit, *) idummy, init_depth
             do i = ii, ii+riv_ndan(n)-1
-                ho_1d(i) = rbed_1d(i) + init_depth
+                h_1d(i) = rbed_1d(i) + init_depth
             enddo
             ii = ii + riv_ndan(n)
         enddo
     elseif(init_type==1) then
         do n = 1, ndan
-            read(finit_unit, *) idummy, ho_1d(n), qo_1d(n)
+            read(finit_unit, *) idummy, h_1d(n), q_1d(n)
         enddo
     endif
     close(finit_unit)

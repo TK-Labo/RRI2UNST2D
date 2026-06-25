@@ -21,7 +21,7 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     use unst_globals_mod
     use unst_cal_sub
     use d1riv_globals_mod
-    use unst_1d_main
+    use unst_d1_main
     use unst_cnct_1d2d
     use unst_wrfile
     implicit none
@@ -37,7 +37,6 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     real(8), intent(in) :: time
     real(8), intent(inout) :: hs(ny,nx), hr(ny,nx)
     integer me, li, k, i
-    real(8) :: unst_tmp_ds
 
     ! write message - start UNST2D
     write(*,*) 'UNST2D timestep ===  ',int(time-timmax), '  >>>>>  ', int(time)
@@ -56,7 +55,7 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
             a_n_1d = a_1d
             call calc_2d_to_1d_inflow
             call calc_1d_to_2d_outflow
-            call d1riv_main(unsttime)
+            call d1riv_main(1)
         endif
         ! U^n -> U^*
         ! == Equation of motion (cal flux) ==
@@ -69,7 +68,7 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
         ! == Equation of continuity (cal waterdepth) ==
         call suisin  ! cal mesh water depth
         ! cal velocity
-        call velocity
+        call velocity(1)
         ! update variable（new >>> old）
         call replace
         riv_eq = 0.0d0
@@ -78,9 +77,7 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
         if(d1riv==1) then
             call calc_2d_to_1d_inflow
             call calc_1d_to_2d_outflow
-            call d1riv_main(unsttime)
-            q_1d = 0.5d0 * (q_n_1d + q_1d)
-            a_1d = 0.5d0 * (a_n_1d + a_1d)
+            call d1riv_main(2)
         endif
         call flux   ! cal link flux
         um = 0.5d0 * (um_n + um)
@@ -91,27 +88,19 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
         call suisin  ! cal mesh water depth
         unsth = 0.5d0 * (unsth_n + unsth)
         ! cal velocity
-        call velocity
+        call velocity(2)
 
         ! update max record
-        unst_tmp_ds = 0.0d0
-        !$omp parallel do default(shared),private(me),reduction(+:unst_tmp_ds)
+        !$omp parallel do default(shared),private(me)
         do me = 1, mesh
-            if(baseo(me)<=-9999.0d0) then
-                unst_tmp_ds = unst_tmp_ds + unsth(me) * smesh(me)  ! v.1.0.5
-                unsth(me) = 0.0d0
-            endif
             hmax(me) = max(hmax(me), unsth(me))
             uummax(me) = max(uummax(me), abs(uum(me)))
             vvmmax(me) = max(vvmmax(me), abs(vvm(me)))
         enddo
         !$omp end parallel do
 
-        unst_dis_v = unst_dis_v + unst_tmp_ds
-
         ! update variable（new >>> old）
         call replace
-        riv_eq = 0.0d0
 
         ! reset subflow
         if(d1riv==1) then
@@ -135,6 +124,9 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
 
         if(disp_flag) call dispwrite   ! display
 
+        riv_eq = 0.0d0
+
+        if(d1riv==1) call unstdt_adapt_1d
         call unstdt_adapt(time)
 
     enddo

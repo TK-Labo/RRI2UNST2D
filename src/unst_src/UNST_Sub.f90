@@ -510,9 +510,25 @@ end subroutine suisin
 !----------------------------
 ! Calculate velocity
 !----------------------------
-subroutine velocity
+subroutine velocity(stage)
     implicit none
+    integer, intent(in) :: stage
     integer li, me, k, i
+    real(8) :: unst_tmp_ds
+
+    if(stage==2) then
+        unst_tmp_ds = 0.0d0
+        !$omp parallel do default(shared),private(me),reduction(+:unst_tmp_ds)
+        do me = 1, mesh
+            if(baseo(me)<=-9999.0d0) then
+                unst_tmp_ds = unst_tmp_ds + unsth(me) * smesh(me)  ! v.1.0.5
+                unsth(me) = 0.0d0
+            endif
+        enddo
+        !$omp end parallel do
+
+        unst_dis_v = unst_dis_v + unst_tmp_ds
+    endif
 
     ! hl calculation
     !$omp parallel do default(shared),private(li)
@@ -700,9 +716,11 @@ end subroutine limit_front
 subroutine unstdt_adapt(t)
     real(8), intent(in) :: t
     integer me, k, li
-    real(8) tmp_sp, tmp_unstdt, tmp_mindt
+    real(8) tmp_sp, tmp_unstdt, tmp_mindt, nowdt
 
+    nowdt = dt2
     tmp_mindt = unstdt
+    tmp_unstdt = dt2
     !$omp parallel do default(shared), private(me, k, li, tmp_sp, tmp_unstdt), reduction(min: tmp_mindt) 
     do me = 1, mesh
         if(unsth(me)>th) then
@@ -722,6 +740,7 @@ subroutine unstdt_adapt(t)
     dispdt = dt2
 
     if(unsttime+dt2>t) dt2 = max(t - unsttime, 1.0d-6)
+    if(d1riv==1) dt2 = min(dt2, nowdt)
 
     if(unsttime+dt2>=next_disp_t .and. t>=next_disp_t) then
         dt2 = max(next_disp_t - unsttime, 1.0d-6)

@@ -17,14 +17,15 @@ real(8), parameter :: rivth = 1.0d-3
 real(8), parameter :: thd_1d = 1.0d-4
 real(8), parameter :: tha_1d = 1.0d-6
 real(8), parameter :: tha2_1d = 1.0d-4
+real(8), parameter :: min_1ddt = 0.01d0
 
 !------------
 ! time param
 !------------
 integer spout  ! dispout in spin up
 real(8) unsttime_r
-integer d1_spin_upn
-real(8) rivdt
+real(8) rivdt, d1maxdt, d1_cfl
+real(8) d1_spin_ups
 
 !-------------
 ! num of data
@@ -32,13 +33,14 @@ real(8) rivdt
 integer ndan  ! num of cross-section
 integer nriv  ! num of river
 integer, allocatable :: riv_ndan(:)
+integer max_nb
 
 !---------------
 ! cross section
 !---------------
-real(8), allocatable :: h_1d(:), ho_1d(:)  ! water head
+real(8), allocatable :: h_1d(:)  ! water head
 real(8), allocatable :: vv_1d(:)           ! velocity
-real(8), allocatable :: q_1d(:), qo_1d(:)  ! volume
+real(8), allocatable :: q_1d(:)  ! volume
 real(8), allocatable :: a_1d(:), r_1d(:)   ! area, radius
 real(8), allocatable :: b_1d(:), rn_1d(:)  ! width, roughness
 real(8), allocatable :: q_n_1d(:), a_n_1d(:)  ! RK
@@ -94,5 +96,9 @@ integer, allocatable :: bktype_1d(:,:)  ! breakpoint flag
 
 character(len=100) finit, fd1out, fd1mx
 integer fd1out_unit, fd1mx_unit
+
+! update v.1.0.6
+integer rsetsu_1d
+integer, allocatable :: rsetsu_i_1d(:), rsetsu_j_1d(:)
 
 end module d1riv_globals_mod

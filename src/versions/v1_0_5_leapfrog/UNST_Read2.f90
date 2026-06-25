@@ -107,7 +107,6 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     ! Step2 : Set constant param
     !============================
     d1_spin_ups = rpre_d*86400 +  rpre_h*3600 + rpre_m*60 + rpre_s
-    d1_spin_upn = int(d1_spin_ups/dt2)
 
     read_count = 0
     read_count2 = 1
@@ -146,7 +145,6 @@ subroutine d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
     ! -- allocate --
     allocate(ntype_1d(ndan))
     allocate(h_1d(ndan), vv_1d(ndan), q_1d(ndan))
-    allocate(ho_1d(ndan), qo_1d(ndan))
     allocate(h_1dmax(ndan), vv_1dmax(ndan))
     allocate(kp_1d(ndan), dx_1d(ndan))
     allocate(a_1d(ndan), r_1d(ndan), b_1d(ndan), rn_1d(ndan))
@@ -702,10 +700,8 @@ subroutine d1rivinitiald(dt2)
     rivdt = dt2  ! time delta
 
     h_1d = 0.0d0
-    ho_1d = 0.0d0
     vv_1d = 0.0d0
     q_1d = 0.0d0
-    qo_1d = 0.0d0
     r_1d = 0.0d0
     a_1d = 0.0d0
     b_1d = 0.0d0
@@ -731,7 +727,7 @@ subroutine d1rivinitiald(dt2)
         do n = 1, nriv
             read(finit_unit, *) idummy, init_depth
             do i = ii, ii+riv_ndan(n)-1
-                ho_1d(i) = rbed_1d(i) + init_depth
+                h_1d(i) = rbed_1d(i) + init_depth
             enddo
             ii = ii + riv_ndan(n)
         enddo
