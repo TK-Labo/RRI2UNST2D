@@ -146,9 +146,9 @@ module unst_write_procedures
             open(newunit = fd1out_unit, file = fd1out, action = 'write')
             open(newunit = fd1mx_unit, file = fd1mx, action = 'write')
             write(fd1out_unit, '(A)') &
-                '  rid     kp(m)     wl(m)  depth(m)   q(m3/s) velo(m/s)  subq(m3)'
+                '  rid     kp(m)     wl(m)  depth(m)   q(m3/s) velo(m/s)  subq(m3)  area(m2)'
             write(fd1mx_unit, '(A)') &
-                '  rid     kp(m)     wl(m)  depth(m)   q(m3/s) velo(m/s)  subq(m3)'
+                '  rid     kp(m)     wl(m)  depth(m)   q(m3/s) velo(m/s)  subq(m3)  area(m2)'
         endif
 
     end subroutine

@@ -25,6 +25,7 @@ integer spout  ! dispout in spin up
 real(8) unsttime_r
 integer d1_spin_upn
 real(8) rivdt
+real(8) d1_spin_ups
 
 !-------------
 ! num of data
@@ -32,6 +33,7 @@ real(8) rivdt
 integer ndan  ! num of cross-section
 integer nriv  ! num of river
 integer, allocatable :: riv_ndan(:)
+integer max_nb
 
 !---------------
 ! cross section
@@ -93,5 +95,8 @@ integer, allocatable :: bktype_1d(:,:)  ! breakpoint flag
 
 character(len=100) finit, fd1out, fd1mx
 integer fd1out_unit, fd1mx_unit
+
+integer rsetsu_1d
+integer, allocatable :: rsetsu_i_1d(:), rsetsu_j_1d(:)
 
 end module d1riv_globals_mod

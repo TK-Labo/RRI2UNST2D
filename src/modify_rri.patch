@@ -61,7 +61,7 @@
 +
 +call unst_initiald(dir, nx, ny)
 +if(d1riv==1) call d1rivinitiald(dt2, unstdt, unst_cfl)
-+if(d1riv==1) call d1riv_spinup
++if(d1riv==1) call d1riv_spinup(dt2)
 +if(paddydam==1) call paddyinitiald
 +if(drainarea==1) call draininitiald
 +

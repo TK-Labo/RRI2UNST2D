@@ -213,6 +213,10 @@ subroutine unst_initiald(dir, nx, ny)
     rqin_coef = 0.0d0
     do j = 1, iqnum
         meid = limesh(inl(j),1)  ! mesh id
+        if(rsetsu_i(meid)==0 .or. rsetsu_j(meid)==0) then
+            lkyokai_dir(j) = 0
+            cycle
+        endif
         select case(dir(rsetsu_i(meid), rsetsu_j(meid)))
             case(1)  ! from left side (flow dir →)
                 sep_qin(meid) = 1

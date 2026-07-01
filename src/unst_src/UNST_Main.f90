@@ -53,9 +53,10 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
         if(d1riv==1) then
             q_n_1d = q_1d
             a_n_1d = a_1d
+            subq_n_all = subq_all
             call calc_2d_to_1d_inflow
             call calc_1d_to_2d_outflow
-            call d1riv_main(1)
+            call d1riv_main(1, unsttime, dt2)
         endif
         ! U^n -> U^*
         ! == Equation of motion (cal flux) ==
@@ -77,7 +78,7 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
         if(d1riv==1) then
             call calc_2d_to_1d_inflow
             call calc_1d_to_2d_outflow
-            call d1riv_main(2)
+            call d1riv_main(2, unsttime, dt2)
         endif
         call flux   ! cal link flux
         um = 0.5d0 * (um_n + um)

@@ -60,15 +60,9 @@ subroutine d1rivdat(lasth, dt, mesh, baseo, frivcntl)
     read(frivcntl_unit, *)
     !! oudan
     read(frivcntl_unit, '(7x, i11)') oudan_format
-    if(oudan_format==0) then
-        read(frivcntl_unit, '(7x, f11.2)') dz  ! common(table dz)
-        read(frivcntl_unit, '(A)') foudan  ! common()
-        read(frivcntl_unit, '(A)') foudan_table
-    else
-        read(frivcntl_unit, *)
-        read(frivcntl_unit, '(A)') foudan  ! common()
-        read(frivcntl_unit, *)
-    endif
+    read(frivcntl_unit, '(7x, f11.2)') dz  ! common(table dz)
+    read(frivcntl_unit, '(A)') foudan  ! common()
+    read(frivcntl_unit, '(A)') foudan_table
     read(frivcntl_unit, *)
     read(frivcntl_unit, *)
 
@@ -153,6 +147,7 @@ subroutine d1rivdat(lasth, dt, mesh, baseo, frivcntl)
         ud_idx_1d(2,i) = tmp_ndan  ! upstream
     enddo
     ndan = tmp_ndan
+    read(fjudan_unit, *)
     read(fjudan_unit, *) rsetsu_1d
     write(*,*) 'num of cross section - ', ndan
 
@@ -165,7 +160,7 @@ subroutine d1rivdat(lasth, dt, mesh, baseo, frivcntl)
     allocate(depth_1d(ndan))
     allocate(rbed_1d(ndan), rzmax_1d(ndan))
     allocate(dan_record(ndan))
-    allocate(q_n_1d(ndan), a_n_1d(ndan))  ! RK
+    allocate(q_n_1d(ndan), a_n_1d(ndan), subq_n_all(ndan))  ! RK
     ! - - -
     allocate(n_tbl(ndan))
     ! - - -
@@ -417,12 +412,14 @@ subroutine d1rivdat(lasth, dt, mesh, baseo, frivcntl)
     close(f1d2d_unit)
 
     if(rsetsu_1d==1 .or. any(ntype_1d==-100)) then
-        read(fjudan_unit, *)
         allocate(rsetsu_i_1d(ndan), rsetsu_j_1d(ndan))
         rsetsu_i_1d = 0
         rsetsu_j_1d = 0
-        do n = 1, ndan
-            read(fjudan_unit, *) rsetsu_i_1d(n), rsetsu_j_1d(n)
+        do i = 1, ndan
+            read(fjudan_unit, '(A)', iostat=ios) line
+            if(ios/=0) exit
+            read(line, *) n, idummy, idummy
+            read(line, *) idummy, rsetsu_i_1d(n), rsetsu_j_1d(n)
         enddo
     endif
     close(fjudan_unit)
@@ -732,6 +729,7 @@ subroutine d1rivinitiald(dt2, unstdt, unst_cfl)
     up_q_1d = 0.0d0
     q_n_1d = 0.0d0
     a_n_1d = 0.0d0
+    subq_n_all = 0.0d0
 
     open(newunit=finit_unit, file = finit, action = 'read')
     ii = 1

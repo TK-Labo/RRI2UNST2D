@@ -21,7 +21,7 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     use unst_globals_mod
     use unst_cal_sub
     use d1riv_globals_mod
-    use unst_1d_main
+    use unst_d1_main
     use unst_cnct_1d2d
     use unst_wrfile
     implicit none
@@ -61,18 +61,7 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     call lkyokai ! apply boundary condition
 
     ! flow flux(velocity) ahead of the flood inundation front set
-    !$omp parallel do default(shared),private(me,li,k)
-    do me = 1, mesh
-        if(unsth(me) >= th) cycle
-        do k = 1, ko(me)
-            li = melink(k, me)
-            if((um(li)*node_dy(k, me) - vn(li)*node_dx(k, me)) > 0.0d0) then
-                um(li) = 0.0d0
-                vn(li) = 0.0d0
-            endif
-        enddo
-    enddo
-    !$omp end parallel do
+    call limit_front
 
     ! update time(1)
     unsttime = unsttime + unstdt
@@ -87,13 +76,7 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     call velocity
 
     ! update max record
-    !$omp parallel do default(shared),private(me)
-    do me = 1, mesh
-        hmax(me) = max(hmax(me), unsth(me))
-        uummax(me) = max(uummax(me), abs(uum(me)))
-        vvmmax(me) = max(vvmmax(me), abs(vvm(me)))
-    enddo
-    !$omp end parallel do
+    call limit_front
 
     ! update variable（new >>> old）
     call replace

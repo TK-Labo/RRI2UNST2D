@@ -40,7 +40,7 @@ subroutine unst_qin(ny, nx, i4, &
         do i = 1, iqnum
             ! target UNST2D mesh id
             id = limesh(inl(i),1)
-
+            if(lkyokai_dir(i)==0) cycle
             ! x方向の流量計算 (RRI斜面方向からUNST方向への変換)
             ! convert x direction q from RRI q
             qu(i) = (qs_ave(1, rsetsu_i(id), rsetsu_j(id)) &
@@ -65,7 +65,7 @@ subroutine unst_qin(ny, nx, i4, &
         do i = 1, iqnum
             ! target UNST2D mesh id
             id = limesh(inl(i),1)
-
+            if(lkyokai_dir(i)==0) cycle
             ! x方向の流量計算 (RRI斜面方向からUNST方向への変換)
             ! convert x direction q from RRI q
             qu(i) = (qs_ave(1, rsetsu_i(id), rsetsu_j(id)) &

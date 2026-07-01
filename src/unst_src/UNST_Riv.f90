@@ -75,7 +75,7 @@ subroutine fractional_step_robust
 
         ! q*
         tmp_q = current_q(n) - term_adv * rivdt
-        tmp_v = tmp_q/current_a ! fixed v.1.0.6
+        if (current_a > tha_1d) tmp_v = tmp_q/current_a ! fixed v.1.0.6
 
         ! --- Step 2: 圧力項/Pressure & 摩擦項/Friction ---
         term_pres = 0.0d0
@@ -178,7 +178,7 @@ subroutine sub_flow_1d
                 cnt_d1 = subflow_input(1,i)  ! sub (center)
                 sub_d1 = subflow_input(1,i)  ! sub
                 main_d1 = subflow_input(2,i)  ! main
-                dns_d1 = subflow_input(2,i) -1  ! main (downstream)
+                dns_d1 = subflow_input(2,i)  ! main (downstream)
                 coef = -1.0d0
             elseif(ntype_1d(subflow_input(1,i))==-3) then
                 ! distributary
@@ -205,7 +205,7 @@ subroutine sub_flow_1d
             endif
         
             tmp_q = q_1d(sub_d1) - term_adv * rivdt
-            if(a_1d(cnt_d1)>0.0d0) tmp_v = tmp_q/a_1d(cnt_d1)  ! fixed v.1.0.6
+            if(a_1d(cnt_d1)> tha_1d) tmp_v = tmp_q/a_1d(cnt_d1)  ! fixed v.1.0.6
             ! ----------
         
             ! Step 2 ---
@@ -272,8 +272,6 @@ subroutine continuous_1d
 
     enddo
     !!$omp end parallel do
-
-    subq_all = 0.0d0  ! reset
 
 end subroutine continuous_1d
 
@@ -750,13 +748,14 @@ end subroutine unstdt_adapt_1d
 !=====================================
 ! Main
 !=====================================
-subroutine d1riv_main(step)
+subroutine d1riv_main(step, t, delta_t)
     implicit none
     integer, intent(in) :: step
+    real(8), intent(in) :: t, delta_t
 
     if(step == 1) then
-        unsttime_r = unsttime
-        rivdt = dt2
+        unsttime_r = t
+        rivdt = delta_t
     endif
 
     call weir_equation
@@ -765,14 +764,17 @@ subroutine d1riv_main(step)
     call sub_flow_1d
     call q_bound_1d
     if(step==2) q_1d = 0.5d0 * (q_n_1d + q_1d)
+    if(step==2) subq_all = 0.5d0 * (subq_n_all + subq_all)
     call continuous_1d
     if(step==2) a_1d = 0.5d0 * (a_n_1d + a_1d)
     call replace_1d
+    subq_all = 0.0d0  ! reset
 
 end subroutine d1riv_main
 
-subroutine d1riv_spinup
+subroutine d1riv_spinup(delta_t)
     implicit none
+    real(8), intent(in) :: delta_t
     integer n
 
     do n = 1, ndan
@@ -792,11 +794,13 @@ subroutine d1riv_spinup
             call q_bound_1d
             call continuous_1d
             call replace_1d
+            subq_all = 0.0d0  ! reset
             unsttime_r = unsttime_r + rivdt
         enddo
         write(*,*) '  Sipn up 1d river fin -- '
     endif
     unsttime_r = 0.0d0
+    rivdt = delta_t
 
 end subroutine d1riv_spinup
 

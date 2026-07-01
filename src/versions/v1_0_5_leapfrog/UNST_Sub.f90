@@ -687,4 +687,21 @@ subroutine unst_infilt(me)
 
 end subroutine unst_infilt
 
+subroutine limit_front
+    integer me, li, k
+    ! flow flux(velocity) ahead of the flood inundation front set
+    !$omp parallel do default(shared),private(me,li,k)
+    do me = 1, mesh
+        if(unsth(me) >= th) cycle
+        do k = 1, ko(me)
+            li = melink(k, me)
+            if((um(li)*node_dy(k, me) - vn(li)*node_dx(k, me)) > 0.0d0) then
+                um(li) = 0.0d0
+                vn(li) = 0.0d0
+            endif
+        enddo
+    enddo
+    !$omp end parallel do
+end subroutine limit_front
+
 end module unst_cal_sub

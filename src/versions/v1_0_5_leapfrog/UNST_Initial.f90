@@ -4,7 +4,7 @@
 
 subroutine unst_initiald(dir, nx, ny)
     use unst_globals_mod
-    use unst_1d_main
+    use unst_d1_main
     implicit none
     integer, intent(in) :: nx, ny, dir(ny, nx)
     integer me, li, k, k2, j
@@ -206,6 +206,10 @@ subroutine unst_initiald(dir, nx, ny)
     rqin_coef = 0.0d0
     do j = 1, iqnum
         meid = limesh(inl(j),1)  ! mesh id
+        if(rsetsu_i(meid)==0 .or. rsetsu_j(meid)==0) then
+            lkyokai_dir(j) = 0
+            cycle
+        endif
         select case(dir(rsetsu_i(meid), rsetsu_j(meid)))
             case(1)  ! from left side (flow dir →)
                 sep_qin(meid) = 1
@@ -273,7 +277,5 @@ subroutine unst_initiald(dir, nx, ny)
                 lkyokai_dir(j) = 0  ! >0 河道流入あり, <0 河道流入なし, =0 流入なし
         end select                       
     enddo
-
-    if(d1riv==1) call d1riv_spinup
 
 end subroutine unst_initiald
