@@ -51,7 +51,7 @@ subroutine paddyinitiald
     enddo
 
     !depth of submergence
-    etp = (etp / 86400.0d0 / 1000)
+    etp = (etp / 86400.0d0 / 1000) * dt2
 
     ! calculate distance from paddy field to waterway
     hpa = 0.0d0
@@ -236,7 +236,7 @@ subroutine draininitiald
         vol_dr(me) = 0.0d0
         if (inf_dr(me) > 0) then
 
-            vol_dr(me) = drr(inf_dr(me))*1.0d-3*smesh(me) / 3600.0d0
+            vol_dr(me) = drr(inf_dr(me))*1.0d-3*smesh(me) / 3600.0d0 * dt2
 
             distanceA(me) = 0.0d0
             distanceB(me) = 0.0d0

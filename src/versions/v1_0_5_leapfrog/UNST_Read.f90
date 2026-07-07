@@ -45,7 +45,7 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     integer sep_rtuv, outedge_num, tmp_iqnum, tmp_inl, except_judge
     integer, allocatable :: unst_ij(:,:), qin_j(:,:), tmp_inlme(:)
 
-    ! real(8) dkout, dpout  go to unst_globals_mod
+    real(8) dkout, dpout
 
     ! config file
     fcntl = 'UNST2D_cntl.dat'
@@ -224,8 +224,10 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     ! Step2 : Set constant param
     !----------------------------
     dtq = dble(dt)  ! boundary q dt
-    dt2 = unstdt  ! RK2 dt
-    dispdt = dt2  ! RK2 dt (for display)
+    dt2 = 2.0d0*unstdt  ! leap flog dt
+
+    lpout = int(dpout/unstdt)  ! display write dt
+    lkout = int(dkout/unstdt)  ! disk write dt
 
     !--------------------------
     ! Step3 : Read input files
@@ -563,7 +565,6 @@ subroutine unst_rdat(ny_rain, temprain, nx_rain, tt_max_rain,&
     allocate(lhan(link), lhano(link))
     allocate(rnx(link), dl(link))
     allocate(blink(link))
-    allocate(unsth_n(mesh), um_n(link), vn_n(link))
     
 
 end subroutine unst_rdat

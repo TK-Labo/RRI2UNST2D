@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.0.6] - 2026-07-07
+### Fixed
+- (Common to UNST_***.f90) Optimized array access for certain variables to column-major order
+- (UNST_Read.f90) Corrected  processing for RRI-to-UNST2D connections (mesh specification)
+- (UNST_Read.f90) Added input for vegetation resistance; modified to allow grid-specific settings
+- (UNST_Initial.f90) Corrected the formula for calculating edge length
+- (UNST_Sub.f90) Corrected the sign (positive/negative) for vegetation resistance (trees)
+- (UNST_Riv.f90) Corrected logic for 1D river channels
+
+### Added
+- Under development
+  - (Common to UNST_***.f90) Drafted code for vegetation resistance accounting for vegetation flattening (lodging)
+- Change in time-stepping scheme (under development)
+  - Switched from Leap-frog to RK2 (Heun)
+    - Achieved faster computation during initial stages
+    - Manual not yet updated (updates ongoing)
+
+### Changed
+- Moved the Leap-frog scheme model to "versions/v1_0_5_leapfrog"
+- (UNST_Read2.f90) Changed the format of "d1riv_cntl.dat"
+
 ## [1.0.5] - 2025-12-31
 ### Added
 - Added change log files (CHANGELOG_ja.md / CHANGELOG_en.md)

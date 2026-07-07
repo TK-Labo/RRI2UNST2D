@@ -7,12 +7,13 @@
 !================================
 !--------------------------------------------------------------------------
 ! 1D Model 主な変数/1D Model Main variable
-!   h_1d(ndan): 断面水位/cross-sectional depth of a river
+!   leap-flogに合わせてn -> n+2 で表記
+!   h_1d(ndan): 断面水位(t=n+2)/cross-sectional depth of a river(t=n+2)
 !   a_1d(ndan): 断面河積/cross-sectional area of a river
 !   r_1d(ndan): 断面径深/cross-sectional hydraulic radius of a river
 !   rn_1d(ndan): 断面粗度/cross-sectional roughness of a river
-!   vv_1d(ndan): 流速/cross-sectional velocity of a river
-!   q_1d(ndan): 流量/cross-sectional flow rate of a river
+!   vv_1d(ndan): 断面流速/cross-sectional velocity of a river
+!   q_1d(ndan): 断面流量/cross-sectional flow rate of a river(t=n+2)
 !   subq_all(ndan): 断面横流入量/cross-sectional sub flow rate of a river
 !--------------------------------------------------------------------------
 
@@ -38,9 +39,9 @@ subroutine fractional_step_robust
     allocate(current_q(ndan))
     current_q = q_1d ! copy
 
-    !!$omp parallel do default(shared) &
-    !!$omp private(n, i, term_adv, term_pres, term_fric_coef, tmp_q, tmp_v) &
-    !!$omp private(current_h, current_a, current_r, current_rn, dh_dx)
+    !$omp parallel do default(shared) &
+    !$omp private(n, i, term_adv, term_pres, term_fric_coef, tmp_q, tmp_v) &
+    !$omp private(current_h, current_a, current_r, current_rn, dh_dx)
     do n = 2, ndan
         if((ntype_1d(n)==1) .or. (ntype_1d(n)==-2) .or. (ntype_1d(n)==-4) .or.&
             (ntype_1d(n)==3) .or. (ntype_1d(n)==100)) cycle 
@@ -58,7 +59,7 @@ subroutine fractional_step_robust
                 term_adv = (vv_1d(n) * (current_q(n) - current_q(n-1)) + &
                             current_q(n) * (vv_1d(n) - vv_1d(n-1))    ) / dx_1d(n)
             elseif(vv_1d(n) < 0.0d0) then
-                if(ntype_1d(n)/=-1 .and. ntype_1d(n)/=-100) then
+                if(ntype_1d(n)/=-1) then
                     term_adv = (vv_1d(n) * (current_q(n+1) - current_q(n)) + &
                                 current_q(n) * (vv_1d(n+1) - vv_1d(n))   ) / dx_1d(n+1)
                 else
@@ -88,8 +89,8 @@ subroutine fractional_step_robust
 
             ! 2. Friction Semi-Implicit           
             ! K
-            if (abs(tmp_v) > 1.0d-10) then  ! fixed v.1.0.6
-                 term_fric_coef = rivgg * (current_rn**2) * abs(tmp_v) / (current_r**(4.0d0/3.0d0))  ! fixed v.1.0.6
+            if (abs(tmp_v) > 1.0d-10) then
+                 term_fric_coef = rivgg * (current_rn**2) * abs(tmp_v) / (current_r**(4.0d0/3.0d0))
             else
                  term_fric_coef = 0.0d0
             endif
@@ -101,7 +102,7 @@ subroutine fractional_step_robust
         endif
 
     end do
-    !!$omp end parallel do
+    !$omp end parallel do
 
     deallocate(current_q)
 
@@ -130,13 +131,13 @@ subroutine sub_flow_1d
     real(8) :: coef
 
     ! sum sub qin
-    !!$omp parallel do default(shared), private(n)
+    !$omp parallel do default(shared), private(n)
     do n = 1, ndan
         subq_all(n) = subq_all(n) + &
                       (tributaryq_1d(n) + breakq_1d(n) + weirq_1d(n) + &
                        pumpq_1d(n) + sluiceq_1d(n)) / rivdt
     enddo
-    !!$omp end parallel do
+    !$omp end parallel do
 
     ! Reset sub qin ---
     tributaryq_1d = 0.0d0
@@ -163,7 +164,6 @@ subroutine sub_flow_1d
             term_adv = 0.0d0
             term_pres = 0.0d0
             term_fric_coef = 0.0d0
-            tmp_v = 0.0d0  ! fixed v.1.0.6
             ! --------------
 
             ! set cross section id ---
@@ -178,7 +178,7 @@ subroutine sub_flow_1d
                 cnt_d1 = subflow_input(1,i)  ! sub (center)
                 sub_d1 = subflow_input(1,i)  ! sub
                 main_d1 = subflow_input(2,i)  ! main
-                dns_d1 = subflow_input(2,i)  ! main (downstream)
+                dns_d1 = subflow_input(2,i) -1 ! main (downstream)
                 coef = -1.0d0
             elseif(ntype_1d(subflow_input(1,i))==-3) then
                 ! distributary
@@ -205,7 +205,7 @@ subroutine sub_flow_1d
             endif
         
             tmp_q = q_1d(sub_d1) - term_adv * rivdt
-            if(a_1d(cnt_d1)> tha_1d) tmp_v = tmp_q/a_1d(cnt_d1)  ! fixed v.1.0.6
+            if (a_1d(cnt_d1) > tha_1d) tmp_v = tmp_q/a_1d(cnt_d1)
             ! ----------
         
             ! Step 2 ---
@@ -295,6 +295,7 @@ subroutine replace_1d
     !!$omp end parallel do
 
 end subroutine replace_1d
+
 
 !-------------------------------------
 ! interpolalate
@@ -487,9 +488,9 @@ subroutine weir_equation
     weirq_1d = 0.0d0
     weirq_l_1d = 0.0d0
     weirq_r_1d = 0.0d0
-    !!$omp parallel do default(shared) &
-    !!$omp private(i, n, inlandh, tmp_h1, tmp_h2, h1, h2) &
-    !!$omp private(wir_inout, q0, total_out_vol, available_vol, limit_ratio)
+    !$omp parallel do default(shared) &
+    !$omp private(i, n, inlandh, tmp_h1, tmp_h2, h1, h2) &
+    !$omp private(wir_inout, q0, total_out_vol, available_vol, limit_ratio)
     do n = 1, ndan
         ! left levee
         if(ncnct_1d2d(1,n)/=0 .and. w_alpha_1d(1,n) > 0.0d0 .and. bktype_1d(1,n)/=1) then
@@ -583,12 +584,12 @@ subroutine weir_equation
             if(cnct_1d2d_idx(2,1,n)/=0) riv_eq(cnct_1d2d_idx(2,1,n)) = riv_eq(cnct_1d2d_idx(2,1,n)) - weirq_r_1d(n)
         endif
     enddo
-    !!$omp end parallel do
+    !$omp end parallel do
     
 end subroutine weir_equation
 
 ! ----------------------------------------------
-!  inflow 2D -> 1D
+!  inflow 1D -> 2D
 ! ----------------------------------------------
 subroutine calc_2d_to_1d_inflow
     implicit none
@@ -598,7 +599,7 @@ subroutine calc_2d_to_1d_inflow
     
     do n = 1, nbound_1d
         ii = b_idx_1d(n)
-        if(ntype_1d(ii)/=-1) cycle
+        if(ntype_1d(ii)/=-1) cycle  ! 上流端のみ
         
         me_2d = b_upme_1d(n)
         if(me_2d == 0) cycle
@@ -724,58 +725,30 @@ module unst_d1_main
     
 contains    
 
-subroutine unstdt_adapt_1d
-    integer n
-    real(8) tmph, tmp_sp, tmp_unstdt, tmp_mindt
-
-    tmp_mindt = d1maxdt
-    tmp_unstdt = rivdt
-    !!$omp parallel do default(shared), private(n, tmph, tmp_sp, tmp_unstdt), reduction(min: tmp_mindt) 
-    do n = 2, ndan
-        tmph = h_1d(n)-h_table(1,n)
-        if(tmph>thd_1d) then
-            tmp_sp = 1.0d-4
-            tmp_sp = max(tmp_sp, (abs(vv_1d(n)) + sqrt(gg*tmph)))
-            tmp_mindt = min(dx_1d(n), dx_1d(n-1))/tmp_sp
-        endif
-    enddo
-    !!$omp end parallel do
-
-    dt2 = max(tmp_mindt*d1_cfl, min_1ddt)
-
-end subroutine unstdt_adapt_1d
-
 !=====================================
 ! Main
 !=====================================
-subroutine d1riv_main(step, t, delta_t)
+subroutine d1riv_main(t)
     implicit none
-    integer, intent(in) :: step
-    real(8), intent(in) :: t, delta_t
+    real(8), intent(in) :: t
 
-    if(step == 1) then
-        unsttime_r = t
-        rivdt = delta_t
-    endif
+    unsttime_r = t
 
     call weir_equation
     call h_bound_1d
     call fractional_step_robust
     call sub_flow_1d
     call q_bound_1d
-    if(step==2) q_1d = 0.5d0 * (q_n_1d + q_1d)
-    if(step==2) subq_all = 0.5d0 * (subq_n_all + subq_all)
     call continuous_1d
-    if(step==2) a_1d = 0.5d0 * (a_n_1d + a_1d)
     call replace_1d
     subq_all = 0.0d0  ! reset
 
 end subroutine d1riv_main
 
-subroutine d1riv_spinup(delta_t)
+subroutine d1riv_spinup(t)
     implicit none
-    real(8), intent(in) :: delta_t
     integer n
+    real(8), intent(in) :: t  ! dummy
 
     do n = 1, ndan
         call interp_h_1d(n)
@@ -800,7 +773,6 @@ subroutine d1riv_spinup(delta_t)
         write(*,*) '  Sipn up 1d river fin -- '
     endif
     unsttime_r = 0.0d0
-    rivdt = delta_t
 
 end subroutine d1riv_spinup
 

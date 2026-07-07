@@ -60,9 +60,15 @@ subroutine d1rivdat(lasth, dt, mesh, baseo, frivcntl)
     read(frivcntl_unit, *)
     !! oudan
     read(frivcntl_unit, '(7x, i11)') oudan_format
-    read(frivcntl_unit, '(7x, f11.2)') dz  ! common(table dz)
-    read(frivcntl_unit, '(A)') foudan  ! common()
-    read(frivcntl_unit, '(A)') foudan_table
+    if(oudan_format==0) then
+        read(frivcntl_unit, '(7x, f11.2)') dz  ! common(table dz)
+        read(frivcntl_unit, '(A)') foudan  ! common()
+        read(frivcntl_unit, '(A)') foudan_table
+    else
+        read(frivcntl_unit, *)
+        read(frivcntl_unit, '(A)') foudan  ! common()
+        read(frivcntl_unit, *)
+    endif
     read(frivcntl_unit, *)
     read(frivcntl_unit, *)
 
@@ -160,7 +166,6 @@ subroutine d1rivdat(lasth, dt, mesh, baseo, frivcntl)
     allocate(depth_1d(ndan))
     allocate(rbed_1d(ndan), rzmax_1d(ndan))
     allocate(dan_record(ndan))
-    allocate(q_n_1d(ndan), a_n_1d(ndan), subq_n_all(ndan))  ! RK
     ! - - -
     allocate(n_tbl(ndan))
     ! - - -
@@ -699,14 +704,13 @@ end subroutine read_oudan_data
 
 subroutine d1rivinitiald(dt2, unstdt, unst_cfl)
     implicit none
-    real(8), intent(in) :: dt2, unstdt, unst_cfl
+    real(8), intent(in) :: dt2
+    real(8), intent(in) :: unstdt, unst_cfl ! dummy
     integer finit_unit
     integer i, ii, n, idummy, init_type
     real(8) init_depth
     
     rivdt = dt2  ! time delta
-    d1maxdt = unstdt
-    d1_cfl = unst_cfl
 
     h_1d = 0.0d0
     vv_1d = 0.0d0
@@ -727,14 +731,12 @@ subroutine d1rivinitiald(dt2, unstdt, unst_cfl)
     pumpq_1d = 0.0d0
     sluiceq_1d = 0.0d0
     up_q_1d = 0.0d0
-    q_n_1d = 0.0d0
-    a_n_1d = 0.0d0
-    subq_n_all = 0.0d0
 
     open(newunit=finit_unit, file = finit, action = 'read')
     ii = 1
     read(finit_unit, *) init_type
     if(init_type==0) then
+        ! only fractional
         do n = 1, nriv
             read(finit_unit, *) idummy, init_depth
             do i = ii, ii+riv_ndan(n)-1

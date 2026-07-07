@@ -152,9 +152,9 @@ This modification is for compiliation with gfortran.
 +    ny, nx, lasth, dt, &
 +    xllcorner_rain, yllcorner_rain, cellsize_rain_x, cellsize_rain_y, &
 +    xllcorner, yllcorner, cellsize, dir)
++if(d1riv==1) call d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
 +call open_unst_output_files
 +if(dsmesh==1) call dsmeshdat(lasth)
-+if(d1riv==1) call d1rivdat(lasth, dt2, mesh, baseo, frivcntl)
 +if(plantFN==1) call plantFNdat
 +if(plantDa==1) call plantDadat
 +if(paddydam==1) call paddydat
@@ -163,8 +163,8 @@ This modification is for compiliation with gfortran.
 +if(morid==1) call moriddat
 +
 +call unst_initiald(dir, nx, ny)
-+if(d1riv==1) call d1rivinitiald(dt2)
-
++if(d1riv==1) call d1rivinitiald(dt2, unstdt, unst_cfl)
++if(d1riv==1) call d1riv_spinup
 +if(paddydam==1) call paddyinitiald
 +if(drainarea==1) call draininitiald
 +

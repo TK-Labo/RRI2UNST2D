@@ -139,10 +139,6 @@ subroutine unst_qin(ny, nx, i4, &
         end do
         !$omp end parallel do
     endif
-    ! safety
-    qin(:, min(ii+1, iqin+1)) = qin(:, ii)
-    qinu(:, min(ii+1, iqin+1)) = qinu(:, ii)
-    qinv(:, min(ii+1, iqin+1)) = qinv(:, ii)
 
     ! 流入判定フラグの設定
     ! 流入がある場合　uflg = 1
@@ -172,7 +168,7 @@ subroutine unst_qin(ny, nx, i4, &
         endif
     endif
 
-    end subroutine unst_qin
+end subroutine unst_qin
 
 
 !-----------------------------------------------------------------------

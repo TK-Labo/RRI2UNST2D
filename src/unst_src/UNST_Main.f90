@@ -21,7 +21,7 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
     use unst_globals_mod
     use unst_cal_sub
     use d1riv_globals_mod
-    use unst_1d_main
+    use unst_d1_main
     use unst_cnct_1d2d
     use unst_wrfile
     implicit none
@@ -43,81 +43,92 @@ subroutine UNST2D(ny, nx, domain, riv, time, hs, hr)
 
     ! UNST2D time set
     unsttime = time - timmax
-    mstep = int(unsttime / unstdt)
+    if(disk_flag) next_disk_t = next_disk_t + dkout
+    if(disp_flag) next_disp_t = next_disp_t + dpout
 
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++
     !                    Loop Start
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++
-    do while (unsttime + unstdt <= time)
-    ! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-    !  Equation of motion (cal flux)
-    ! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-    call flux   ! cal link flux
-    call lkyokai ! apply boundary condition
-
-    ! flow flux(velocity) ahead of the flood inundation front set
-    !$omp parallel do default(shared),private(me,li,k)
-    do me = 1, mesh
-        if(unsth(me) >= th) cycle
-        do k = 1, ko(me)
-            li = melink(me, k)
-            if((um(li)*node_dy(me,k) - vn(li)*node_dx(me,k)) > 0.0d0) then
-                um(li) = 0.0d0
-                vn(li) = 0.0d0
-            endif
-        enddo
-    enddo
-    !$omp end parallel do
-
-    if(d1riv==1) then
-        call calc_2d_to_1d_inflow
-        call calc_1d_to_2d_outflow
-        call d1riv_main(unsttime)
-    endif
-
-    ! update time(1)
-    unsttime = unsttime + unstdt
-    mstep = mstep + 1
-
-    ! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-    !  Equation of continuity (cal waterdepth)
-    ! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-    call suisin  ! cal mesh water depth
-
-    ! cal velocity
-    call velocity
-
-    ! update max record
-    !$omp parallel do default(shared),private(me)
-    do me = 1, mesh
-        hmax(me) = max(hmax(me), unsth(me))
-        uummax(me) = max(uummax(me), abs(uum(me)))
-        vvmmax(me) = max(vvmmax(me), abs(vvm(me)))
-    enddo
-    !$omp end parallel do
-
-    ! update variable（new >>> old）
-    call replace
-
-    ! reset subflow
-    if(d1riv==1) then
+    do while (unsttime + dt2 <= time)
+        if(d1riv==1) then
+            q_n_1d = q_1d
+            a_n_1d = a_1d
+            subq_n_all = subq_all
+            call calc_2d_to_1d_inflow
+            call calc_1d_to_2d_outflow
+            call d1riv_main(1, unsttime, dt2)
+        endif
+        ! U^n -> U^*
+        ! == Equation of motion (cal flux) ==
+        um_n = um
+        vn_n = vn
+        unsth_n = unsth
+        call flux   ! cal link flux
+        call lkyokai ! apply boundary condition
+        call limit_front
+        ! == Equation of continuity (cal waterdepth) ==
+        call suisin  ! cal mesh water depth
+        ! cal velocity
+        call velocity(1)
+        ! update variable（new >>> old）
+        call replace
         riv_eq = 0.0d0
-        !$omp parallel do default(shared),private(i)
-        do i = 1, ndan
-            h_1dmax(i) = max(h_1dmax(i), h_1d(i))
-            vv_1dmax(i) = max((vv_1dmax(i)), abs(vv_1d(i)))
+
+        ! U^* -> U^n+1
+        if(d1riv==1) then
+            call calc_2d_to_1d_inflow
+            call calc_1d_to_2d_outflow
+            call d1riv_main(2, unsttime, dt2)
+        endif
+        call flux   ! cal link flux
+        um = 0.5d0 * (um_n + um)
+        vn = 0.5d0 * (vn_n + vn)
+        call lkyokai ! apply boundary condition
+        call limit_front
+        ! == Equation of continuity (cal waterdepth) ==
+        call suisin  ! cal mesh water depth
+        unsth = 0.5d0 * (unsth_n + unsth)
+        ! cal velocity
+        call velocity(2)
+
+        ! update max record
+        !$omp parallel do default(shared),private(me)
+        do me = 1, mesh
+            hmax(me) = max(hmax(me), unsth(me))
+            uummax(me) = max(uummax(me), abs(uum(me)))
+            vvmmax(me) = max(vvmmax(me), abs(vvm(me)))
         enddo
         !$omp end parallel do
-    endif
 
-    ! update time(2)
-    unsttime = unsttime + unstdt
-    mstep = mstep + 1
+        ! update variable（new >>> old）
+        call replace
 
-    ! output result
-    if(mod(mstep, lkout) == 0) call diskwrite   ! disk
-    if(mod(mstep, lpout) == 0) call dispwrite   ! display
-    if(paddydam==1 .and. mod(mstep, lkout) == 0) call paddywrite  ! paddydam
+        ! reset subflow
+        if(d1riv==1) then
+            !$omp parallel do default(shared),private(i)
+            do i = 1, ndan
+                h_1dmax(i) = max(h_1dmax(i), h_1d(i))
+                vv_1dmax(i) = max((vv_1dmax(i)), abs(vv_1d(i)))
+            enddo
+            !$omp end parallel do
+        endif
+
+        ! update time(2)
+        unsttime = unsttime + dt2
+
+        ! output result
+        if(disk_flag) then
+            call diskwrite   ! disk
+            ! call dispwrite   ! display
+            if(paddydam==1) call paddywrite  ! paddydam
+        endif
+
+        if(disp_flag) call dispwrite   ! display
+
+        riv_eq = 0.0d0
+
+        if(d1riv==1) call unstdt_adapt_1d
+        call unstdt_adapt(time)
 
     enddo
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++

@@ -8,7 +8,7 @@
 module unst_write_procedures
     use unst_globals_mod
     use d1riv_globals_mod
-contains
+    contains
     !-----------------------
     ! Write 2D nomal output
     !-----------------------
@@ -115,6 +115,7 @@ contains
     ! Open Output file
     !------------------
     subroutine open_unst_output_files
+        use unst_globals_mod
         implicit none
         integer i
 
@@ -147,7 +148,7 @@ contains
             write(fd1out_unit, '(A)') &
                 '  rid     kp(m)     wl(m)  depth(m)   q(m3/s) velo(m/s)  subq(m3)  area(m2)'
             write(fd1mx_unit, '(A)') &
-                '  rid     kp(m)     wl(m)  depth(m)   q(m3/s) velo(m/s)  subq(m3)'
+                '  rid     kp(m)     wl(m)  depth(m)   q(m3/s) velo(m/s)  subq(m3)  area(m2)'
         endif
 
     end subroutine
@@ -156,6 +157,7 @@ contains
     ! Close Output file
     !-------------------
     subroutine close_unst_output_files
+        use unst_globals_mod
         implicit none
 
         close(fh_unit)
@@ -212,7 +214,7 @@ contains
         enddo
         !$omp end parallel do
 
-        write(*, 1000) unsttime, sv, unst_error_v, unst_dis_v, dispdt
+        write(*, 1000) unsttime, sv, unst_error_v, unst_dis_v
 1000 format('UNST------   unsttime=', f8.0, '(s)', 10f18.4)
 ! 1005 format('   unsttime=', f8.0, '(s)', 2f18.4, 4i10)
 ! 1099 format('   unsttime=', f8.0, '(s)', 10f21.7)
@@ -323,7 +325,7 @@ contains
 
         write(*, 1000) time - (timmax / 2.0d0), 0.0d0
 
-        write(*, 1000) time, 0.0d0, dispdt
+        write(*, 1000) time, 0.0d0
 
 1000 format('UNST------   unsttime=', f8.0, '(s)', 10f18.4)
 ! 1005 format('   unsttime=', f8.0, '(s)', 2f18.4, 4i10)
